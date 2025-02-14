@@ -1,5 +1,5 @@
 {
-  "name": "prime-music",
+  "name": "Musicano",
   "version": "1.2",
   "description": "Music Bot",
   "main": "index.js",
@@ -16,7 +16,7 @@
   "scripts": {
     "start": "node index.js"
   },
-  "author": "SSRR",
+  "author": "Krish",
   "license": "XX",
   "engines": {
     "node": "20.x"
