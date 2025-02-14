@@ -21,7 +21,7 @@ module.exports = {
                 .setDescription(lang.support.embed.description
                     .replace("{supportServerLink}", supportServerLink)
                 )
-                .setImage('https://cdn.discordapp.com/attachments/1113800537402527903/1236803979996958740/11.png?ex=663956f7&is=66380577&hm=3b3c19a11adcb979517a133f2907f671305d23f1f5092cf7df043e6d5cab07bc&')
+                .setImage('https://cdn.discordapp.com/attachments/1087774903522050118/1216364490803904612/939aead2774923168f37bec947cddb0a.gif?ex=67afe1f5&is=67ae9075&hm=54b3abfb7e23136e04240c993eaf8793489331c8eae7de43eb870211f3b3100c&')
                 .setTimestamp();
 
             await interaction.reply({ embeds: [embed] });
