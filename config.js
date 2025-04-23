@@ -15,10 +15,10 @@ module.exports = {
   errorLog: "", 
   nodes: [
      {
-      name: "Koi Node V4",
-      password: "NAIGLAVA-dash.techbyte.host",
-      host: "lavahatry4.techbyte.host",
-      port: 3000,
+      name: "Groovy",
+      password: "krish",
+      host: "utopia.pylex.xyz",
+      port: 11503,
       secure: false
     }
   ]
