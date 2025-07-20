@@ -16,9 +16,9 @@ module.exports = {
   nodes: [
      {
       name: "Groovy",
-      password: "krish",
-      host: "utopia.pylex.xyz",
-      port: 11503,
+      password: "157",
+      host: "192.99.10.133",
+      port: 5066,
       secure: false
     }
   ]
