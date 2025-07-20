@@ -16,9 +16,9 @@ module.exports = {
   nodes: [
      {
       name: "Groovy",
-      password: "youshallnotpass",
-      host: "gh46.glacierhosting.org",
-      port: 25583,
+      password: "1527",
+      host: "192.99.10.133",
+      port: 5066,
       secure: false
     }
   ]
