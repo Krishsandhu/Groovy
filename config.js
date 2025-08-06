@@ -16,9 +16,9 @@ module.exports = {
   nodes: [
      {
       name: "Groovy",
-      password: "youshallnotpass",
-      host: "sg.lavalink.aiko-project.xyz",
-      port: 13592,
+      password: "mart",
+      host: "5.39.63.207",
+      port: 8252,
       secure: false
     }
   ]
