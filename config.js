@@ -17,8 +17,8 @@ module.exports = {
      {
       name: "Groovy",
       password: "youshallnotpass",
-      host: "gh46.glacierhosting.org",
-      port: 25583,
+      host: "sg.lavalink.aiko-project.xyz",
+      port: 13592,
       secure: false
     }
   ]
