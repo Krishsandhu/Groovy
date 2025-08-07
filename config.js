@@ -17,9 +17,9 @@ module.exports = {
      {
       name: "Groovy",
       password: "youshallnotpass",
-      host: "lavalink.jirayu.net",
-      port: 13592,
-      secure: false
+      host: "lava.kasawa.pro",
+      port: 443,
+      secure: true
     }
   ]
 }
