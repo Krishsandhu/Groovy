@@ -16,10 +16,10 @@ module.exports = {
   nodes: [
      {
       name: "Groovy",
-      password: "youshallnotpass",
-      host: "lava.kasawa.pro",
-      port: 443,
-      secure: true
+      password: "mart",
+      host: "5.39.63.207",
+      port: 8252,
+      secure: false
     }
   ]
 }
