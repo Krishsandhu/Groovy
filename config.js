@@ -16,9 +16,9 @@ module.exports = {
   nodes: [
      {
       name: "Groovy",
-      password: "glace",
-      host: "5.39.63.207",
-      port: 8262,
+      password: "cocaine",
+      host: "nexus.voidhosting.vip",
+      port: 6004,
       secure: false
     }
   ]
