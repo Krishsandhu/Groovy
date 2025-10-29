@@ -17,8 +17,8 @@ module.exports = {
      {
       name: "Groovy",
       password: "cocaine",
-      host: "nexus.voidhosting.vip",
-      port: 6004,
+      host: "pnode1.danbot.host",
+      port: 1351,
       secure: false
     }
   ]
