@@ -13,13 +13,19 @@ module.exports = {
   SupportServer: "https://discord.gg/xQF9f9yUEM",
   embedTimeout: 5, 
   errorLog: "", 
-  nodes: [
-     {
-      name: "Groovy",
-      password: "https://dsc.gg/ajidevserver",
-      host: "lava-v4.ajieblogs.eu.org",
-      port: 443,
-      secure: true
+    nodes: [
+    {
+      name: "Riffy-India",
+      password: "horizxon.studio",
+      host: "lava4.horizxon.studio",
+      port: 80,
+      secure: false
+    },
+    {
+      name: "Riffy-Europe",
+      password: "horizxon.studio",
+      host: "lava3.horizxon.studio",
+      port: 80,
+      secure: false
     }
   ]
-}
