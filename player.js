@@ -7,7 +7,7 @@ const fs = require("fs");
 const path = require("path");
 const autoplayCollection = require("./mongodb.js");
 
-// Safe loader with fallback to prevent MODULE_NOT_FOUND crashes on Render
+// Safe icons loader to prevent MODULE_NOT_FOUND crashes on Render
 let musicIcons = {
     playerIcon: "https://cdn.discordapp.com/emojis/853635608099684373.png",
     heartIcon: "https://cdn.discordapp.com/emojis/853635608099684373.png"
@@ -15,13 +15,10 @@ let musicIcons = {
 try {
     musicIcons = require("./ui/icons/musicIcons.js");
 } catch (e) {
-    try {
-        musicIcons = require("../ui/icons/musicIcons.js");
-    } catch (err) {
-        // Fallback default icons
-    }
+    // Default icons retained if missing
 }
 
+// Safe colors loader to prevent MODULE_NOT_FOUND crashes on Render
 let colors = {
     cyan: "\x1b[36m",
     green: "\x1b[32m",
@@ -32,11 +29,7 @@ let colors = {
 try {
     colors = require("./ui/colors/colors.js");
 } catch (e) {
-    try {
-        colors = require("./ui/colors/colors");
-    } catch (err) {
-        // Fallback console colors
-    }
+    // Default colors retained if missing
 }
 
 async function sendMessageWithPermissionsCheck(channel, embed, attachment, actionRow1, actionRow2) {
