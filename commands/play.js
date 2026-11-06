@@ -12,12 +12,12 @@ async function play(client, interaction, lang) {
             const embed = new EmbedBuilder()
                 .setColor('#ff0000')
                 .setAuthor({ 
-                    name: lang.play.embed.error, 
+                    name: lang?.play?.embed?.error || "Error", 
                     iconURL: musicIcons.alertIcon,
                     url: config.SupportServer
                 })
-                .setFooter({ text: lang.footer, iconURL: musicIcons.heartIcon })
-                .setDescription(lang.play.embed.noVoiceChannel);
+                .setFooter({ text: lang?.footer || "Groover Music", iconURL: musicIcons.heartIcon })
+                .setDescription(lang?.play?.embed?.noVoiceChannel || "You must be in a voice channel to use this command!");
 
             await interaction.reply({ embeds: [embed], ephemeral: true });
             return;
@@ -27,12 +27,12 @@ async function play(client, interaction, lang) {
             const embed = new EmbedBuilder()
                 .setColor('#ff0000')
                 .setAuthor({ 
-                    name: lang.play.embed.error,
+                    name: lang?.play?.embed?.error || "Error",
                     iconURL: musicIcons.alertIcon,
                     url: config.SupportServer
                 })
-                .setFooter({ text: lang.footer, iconURL: musicIcons.heartIcon })
-                .setDescription(lang.play.embed.noLavalinkNodes);
+                .setFooter({ text: lang?.footer || "Groover Music", iconURL: musicIcons.heartIcon })
+                .setDescription(lang?.play?.embed?.noLavalinkNodes || "No Lavalink nodes are currently available. Please try again shortly.");
 
             await interaction.reply({ embeds: [embed], ephemeral: true });
             return;
@@ -40,30 +40,33 @@ async function play(client, interaction, lang) {
 
         await interaction.deferReply();
 
-        // 1. Resolve tracks first
-        const resolve = await client.riffy.resolve({ query: query, requester: interaction.user.username });
-        if (!resolve || typeof resolve !== 'object') {
-            throw new TypeError('Resolve response is not an object');
+        // Safe resolution wrapper preventing TypeError: Cannot read properties of null (reading 'loadType')
+        let resolve;
+        try {
+            resolve = await client.riffy.resolve({ query: query, requester: interaction.user.username });
+        } catch (resErr) {
+            console.error("Resolve error:", resErr);
+            resolve = null;
         }
 
-        const { loadType, tracks } = resolve;
-
-        if (!Array.isArray(tracks) || tracks.length === 0) {
+        if (!resolve || !resolve.tracks || !Array.isArray(resolve.tracks) || resolve.tracks.length === 0) {
             const errorEmbed = new EmbedBuilder()
-                .setColor(config.embedColor)
+                .setColor('#ff0000')
                 .setAuthor({ 
-                    name: lang.play.embed.error,
+                    name: lang?.play?.embed?.error || "No Results",
                     iconURL: musicIcons.alertIcon,
                     url: config.SupportServer
                 })
-                .setFooter({ text: lang.footer, iconURL: musicIcons.heartIcon })
-                .setDescription(lang.play.embed.noResults);
+                .setFooter({ text: lang?.footer || "Groover Music", iconURL: musicIcons.heartIcon })
+                .setDescription("❌ Could not load this track or search query. The Lavalink node may be rate-limited on this source. Try a different track or link!");
 
             await interaction.editReply({ embeds: [errorEmbed] });
             return;
         }
 
-        // 2. Obtain or establish the player connection
+        const { loadType, tracks } = resolve;
+
+        // Establish or retrieve voice connection
         let player = client.riffy.players.get(interaction.guildId);
         if (!player) {
             player = client.riffy.createConnection({
@@ -74,7 +77,6 @@ async function play(client, interaction, lang) {
             });
         }
 
-        // 3. Handle Queueing
         if (loadType === 'playlist') {
             for (const track of tracks) {
                 track.info.requester = interaction.user.username;
@@ -97,14 +99,14 @@ async function play(client, interaction, lang) {
         }
 
         const randomEmbed = new EmbedBuilder()
-            .setColor(config.embedColor)
+            .setColor(config.embedColor || "#1db954")
             .setAuthor({
-                name: lang.play.embed.requestUpdated,
+                name: lang?.play?.embed?.requestUpdated || "Request Added",
                 iconURL: musicIcons.beats2Icon,
                 url: config.SupportServer
             })
-            .setDescription(lang.play.embed.successProcessed)
-            .setFooter({ text: lang.footer, iconURL: musicIcons.heartIcon });
+            .setDescription(lang?.play?.embed?.successProcessed || "✅ Successfully added to queue!")
+            .setFooter({ text: lang?.footer || "Groover Music", iconURL: musicIcons.heartIcon });
 
         await interaction.editReply({ embeds: [randomEmbed] });
 
@@ -113,12 +115,12 @@ async function play(client, interaction, lang) {
         const errorEmbed = new EmbedBuilder()
             .setColor('#ff0000')
             .setAuthor({ 
-                name: lang.play.embed.error,
+                name: lang?.play?.embed?.error || "Execution Error",
                 iconURL: musicIcons.alertIcon,
                 url: config.SupportServer
             })
-            .setFooter({ text: lang.footer, iconURL: musicIcons.heartIcon })
-            .setDescription(lang.play.embed.errorProcessing);
+            .setFooter({ text: lang?.footer || "Groover Music", iconURL: musicIcons.heartIcon })
+            .setDescription(lang?.play?.embed?.errorProcessing || "An unexpected error occurred while processing playback.");
 
         if (interaction.deferred || interaction.replied) {
             await interaction.editReply({ embeds: [errorEmbed] });
