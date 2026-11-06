@@ -16,9 +16,9 @@ module.exports = {
   nodes: [
      {
       name: "Groovy",
-      password: "glace",
-      host: "de-01.strixnodes.com",
-      port: 2010,
+      password: "youshallnotpass",
+      host: "lavalink.jirayu.net",
+      port: 13592,
       secure: false
     }
   ]
