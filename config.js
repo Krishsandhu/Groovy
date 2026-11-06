@@ -16,10 +16,10 @@ module.exports = {
   nodes: [
      {
       name: "Groovy",
-      password: "tech-host-lavalink",
-      host: "lavalink.tech-host.top",
-      port: 2333,
-      secure: false
+      password: "https://discord.gg/XeSCnk57ZF",
+      host: "lavalink.nazha.online",
+      port: 443,
+      secure: true
     }
   ]
 }
