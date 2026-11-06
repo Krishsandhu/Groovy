@@ -2,10 +2,36 @@ const { Client, GatewayIntentBits } = require("discord.js");
 const config = require("./config.js");
 const fs = require("fs");
 const path = require("path");
-const initializePlayer = require("./player");
 const connectToDatabase = require("./mongodb");
 const colors = require("./ui/colors/colors");
 require("dotenv").config();
+
+// Ensure UI icons exist in module cache to prevent MODULE_NOT_FOUND crashes on Render
+try {
+    require("./ui/icons/musicIcons.js");
+} catch (e) {
+    const iconPath = path.join(__dirname, "ui", "icons", "musicIcons.js");
+    const iconsDir = path.join(__dirname, "ui", "icons");
+    if (!fs.existsSync(iconsDir)) fs.mkdirSync(iconsDir, { recursive: true });
+    if (!fs.existsSync(iconPath)) {
+        fs.writeFileSync(
+            iconPath,
+            `module.exports = {
+    play: "▶️",
+    pause: "⏸️",
+    stop: "⏹️",
+    skip: "⏭️",
+    previous: "⏮️",
+    loop: "🔁",
+    shuffle: "🔀",
+    volume: "🔊",
+    music: "🎵"
+};`
+        );
+    }
+}
+
+const initializePlayer = require("./player");
 
 const client = new Client({
     intents: Object.keys(GatewayIntentBits).map((a) => {
@@ -22,8 +48,6 @@ client.on("ready", () => {
     console.log(`${colors.cyan}[ TIME ]${colors.reset} ${colors.gray}${new Date().toISOString().replace("T", " ").split(".")[0]}${colors.reset}`);
     client.riffy.init(client.user.id);
 });
-
-client.config = config;
 
 fs.readdir("./events", (err, files) => {
     if (err) return console.error(err);
@@ -55,9 +79,11 @@ fs.readdir(config.commandsDir, (err, files) => {
     });
 });
 
-// Fixed raw event forwarder for Riffy
+// Raw voice event forwarder for Riffy
 client.on("raw", (d) => {
-    client.riffy.updateVoiceState(d);
+    if (client.riffy) {
+        client.riffy.updateVoiceState(d);
+    }
 });
 
 client.login(config.TOKEN || process.env.TOKEN).catch((e) => {
@@ -86,7 +112,6 @@ connectToDatabase()
 const express = require("express");
 const app = express();
 
-// Fixed port to use Render's dynamic PORT variable
 const port = process.env.PORT || 3000;
 
 app.get("/", (req, res) => {
