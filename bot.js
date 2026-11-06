@@ -78,8 +78,9 @@ fs.readdir(config.commandsDir, (err, files) => {
     });
 });
 
-// Pass voice state updates directly to Riffy
+// Pass voice state updates directly to Riffy with strict opcode dispatch filtering
 client.on("raw", (d) => {
+    if (![ "VOICE_STATE_UPDATE", "VOICE_SERVER_UPDATE" ].includes(d.t)) return;
     if (client.riffy) {
         client.riffy.updateVoiceState(d);
     }
@@ -110,7 +111,6 @@ async function startDatabase() {
         console.log("-".repeat(40));
         console.log(`${colors.cyan}[ DATABASE ]${colors.reset} ${colors.green}MongoDB Online ✅${colors.reset}`);
 
-        // 24/7 MongoDB keepalive ping (runs every 12 hours so Atlas never pauses due to inactivity)
         setInterval(async () => {
             try {
                 if (dbInstance && typeof dbInstance.command === "function") {
@@ -153,7 +153,7 @@ app.listen(port, "0.0.0.0", () => {
     console.log(`${colors.magenta}${colors.bright}🌐 SERVER STATUS${colors.reset}`);
     console.log("-".repeat(40));
     console.log(`${colors.cyan}[ SERVER ]${colors.reset} ${colors.green}Online ✅${colors.reset}`);
-    console.log(`${colors.cyan}[ PORT ]${colors.reset} ${colors.yellow}http://localhost:${port}${colors.reset}`);
+    console.log(`${colors.cyan}[ PORT ]${colors.yellow}http://localhost:${port}${colors.reset}`);
     console.log(`${colors.cyan}[ TIME ]${colors.reset} ${colors.gray}${new Date().toISOString().replace("T", " ").split(".")[0]}${colors.reset}`);
     console.log(`${colors.cyan}[ USER ]${colors.reset} ${colors.yellow}GlaceYT${colors.reset}`);
 });
