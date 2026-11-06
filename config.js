@@ -16,8 +16,8 @@ module.exports = {
   nodes: [
      {
       name: "Groovy",
-      password: "https://discord.gg/XeSCnk57ZF",
-      host: "lavalink.nazha.online",
+      password: "https://seretia.link/discord",
+      host: "lavalinkv4.serenetia.com",
       port: 443,
       secure: true
     }
