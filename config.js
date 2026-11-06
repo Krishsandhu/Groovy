@@ -13,18 +13,18 @@ module.exports = {
   errorLog: "",
   nodes: [
     {
-      name: "Riffy-India",
-      password: "horizxon.studio",
-      host: "lava4.horizxon.studio",
-      port: 80,
-      secure: false
+      name: "Nazha-SG1",
+      password: "https://discord.gg/XeSCnk57ZF",
+      host: "sg-1.nazha.online",
+      port: 443,
+      secure: true
     },
     {
-      name: "Riffy-Europe",
-      password: "horizxon.studio",
-      host: "lava3.horizxon.studio",
-      port: 80,
-      secure: false
+      name: "Ajie-Node",
+      password: "https://dsc.gg/ajidevserver",
+      host: "lava-v4.ajieblogs.eu.org",
+      port: 443,
+      secure: true
     }
   ]
 };
