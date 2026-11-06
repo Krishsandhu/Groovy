@@ -7,27 +7,27 @@ const fs = require("fs");
 const path = require("path");
 const autoplayCollection = require("./mongodb.js");
 
-// Multi-path loader for music icons matching both Linux and Windows casing
+// Safe icon loader
 let musicIcons = {
     playerIcon: "https://cdn.discordapp.com/emojis/853635608099684373.png",
     heartIcon: "https://cdn.discordapp.com/emojis/853635608099684373.png"
 };
-
 const iconPaths = [
     "./UI/icons/musicicons.js",
     "./UI/icons/musicIcons.js",
     "./ui/icons/musicicons.js",
     "./ui/icons/musicIcons.js"
 ];
-
 for (const p of iconPaths) {
     try {
-        musicIcons = require(p);
-        break;
+        const loaded = require(p);
+        if (loaded) {
+            musicIcons = { ...musicIcons, ...loaded };
+            break;
+        }
     } catch (e) {}
 }
 
-// Multi-path loader for colors
 let colors = {
     cyan: "\x1b[36m",
     green: "\x1b[32m",
@@ -35,18 +35,28 @@ let colors = {
     gray: "\x1b[90m",
     reset: "\x1b[0m"
 };
-
 const colorPaths = [
     "./UI/colors/colors.js",
     "./ui/colors/colors.js",
     "./ui/colors/colors"
 ];
-
 for (const p of colorPaths) {
     try {
-        colors = require(p);
-        break;
+        const loaded = require(p);
+        if (loaded) {
+            colors = { ...colors, ...loaded };
+            break;
+        }
     } catch (e) {}
+}
+
+function isValidUrl(string) {
+    try {
+        new URL(string);
+        return true;
+    } catch (_) {
+        return false;
+    }
 }
 
 async function sendMessageWithPermissionsCheck(channel, embed, attachment, actionRow1, actionRow2) {
@@ -62,18 +72,18 @@ async function sendMessageWithPermissionsCheck(channel, embed, attachment, actio
             return;
         }
 
-        const message = await channel.send({
+        const payload = {
             embeds: [embed],
-            files: [attachment],
             components: [actionRow1, actionRow2],
-        });
+        };
+        if (attachment) {
+            payload.files = [attachment];
+        }
+
+        const message = await channel.send(payload);
         return message;
     } catch (error) {
         console.error("Error sending message:", error.message);
-        const errorEmbed = new EmbedBuilder()
-            .setColor("#FF0000")
-            .setDescription("⚠️ **Unable to send message. Check bot permissions.**");
-        await channel.send({ embeds: [errorEmbed] }).catch(() => {});
     }
 }
 
@@ -118,9 +128,10 @@ function initializePlayer(client) {
         const trackUri = track.info.uri;
         const requester = requesters.get(trackUri) || "Unknown User";
 
+        let attachment = null;
         try {
             const musicard = await Dynamic({
-                thumbnailImage: track.info.thumbnail || "https://example.com/default_thumbnail.png",
+                thumbnailImage: track.info.thumbnail || "https://cdn.discordapp.com/embed/avatars/0.png",
                 backgroundColor: "#070707",
                 progress: 10,
                 progressColor: "#FF7A00",
@@ -133,42 +144,51 @@ function initializePlayer(client) {
 
             const cardPath = path.join(__dirname, "musicard.png");
             fs.writeFileSync(cardPath, musicard);
+            attachment = new AttachmentBuilder(cardPath, { name: "musicard.png" });
+        } catch (imgError) {
+            console.error("Musicard canvas render skipped:", imgError.message);
+        }
 
-            const attachment = new AttachmentBuilder(cardPath, { name: "musicard.png" });
-            const embed = new EmbedBuilder()
-                .setAuthor({
-                    name: "Playing Song...",
-                    iconURL: musicIcons.playerIcon || undefined,
-                    url: config.SupportServer || "https://discord.gg",
-                })
-                .setFooter({ text: "Developed by Krish | Groover v1.2", iconURL: musicIcons.heartIcon || undefined })
-                .setTimestamp()
-                .setDescription(
-                    `**Title:** [${track.info.title}](${track.info.uri})\n` +
-                    `**Author:** ${track.info.author || "Unknown Artist"}\n` +
-                    `**Length:** ${formatDuration(track.info.length)}\n` +
-                    `**Requester:** ${requester}\n` +
-                    `**Source:** ${track.info.sourceName}\n\n` +
-                    `**Controls:** 🔁 \`Loop\`, ❌ \`Disable\`, ⏭️ \`Skip\``
-                )
-                .setImage("attachment://musicard.png")
-                .setColor("#FF7A00");
+        const embed = new EmbedBuilder()
+            .setTimestamp()
+            .setDescription(
+                `**Title:** [${track.info.title}](${track.info.uri})\n` +
+                `**Author:** ${track.info.author || "Unknown Artist"}\n` +
+                `**Length:** ${formatDuration(track.info.length)}\n` +
+                `**Requester:** ${requester}\n` +
+                `**Source:** ${track.info.sourceName}\n\n` +
+                `**Controls:** 🔁 \`Loop\`, ❌ \`Disable\`, ⏭️ \`Skip\``
+            )
+            .setColor("#FF7A00");
 
-            const actionRow1 = createActionRow1(false);
-            const actionRow2 = createActionRow2(false);
+        if (isValidUrl(musicIcons.playerIcon)) {
+            embed.setAuthor({
+                name: "Playing Song...",
+                iconURL: musicIcons.playerIcon,
+                url: isValidUrl(config.SupportServer) ? config.SupportServer : undefined,
+            });
+        } else {
+            embed.setAuthor({ name: "Playing Song..." });
+        }
 
-            const message = await sendMessageWithPermissionsCheck(channel, embed, attachment, actionRow1, actionRow2);
-            if (message) {
-                currentTrackMessageId = message.id;
-                if (collector) collector.stop();
-                collector = setupCollector(client, player, channel, message);
-            }
-        } catch (error) {
-            console.error("Error creating or sending music card:", error.message);
-            const errorEmbed = new EmbedBuilder()
-                .setColor("#FF0000")
-                .setDescription("⚠️ **Unable to load track card. Continuing playback...**");
-            await channel.send({ embeds: [errorEmbed] }).catch(() => {});
+        if (isValidUrl(musicIcons.heartIcon)) {
+            embed.setFooter({ text: "Developed by Krish | Groover v1.2", iconURL: musicIcons.heartIcon });
+        } else {
+            embed.setFooter({ text: "Developed by Krish | Groover v1.2" });
+        }
+
+        if (attachment) {
+            embed.setImage("attachment://musicard.png");
+        }
+
+        const actionRow1 = createActionRow1(false);
+        const actionRow2 = createActionRow2(false);
+
+        const message = await sendMessageWithPermissionsCheck(channel, embed, attachment, actionRow1, actionRow2);
+        if (message) {
+            currentTrackMessageId = message.id;
+            if (collector) collector.stop();
+            collector = setupCollector(client, player, channel, message);
         }
     });
 
