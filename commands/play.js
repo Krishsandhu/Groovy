@@ -27,7 +27,7 @@ async function play(client, interaction, lang) {
             const embed = new EmbedBuilder()
                 .setColor('#ff0000')
                 .setAuthor({ 
-                    name: lang?.play?.embed?.error || "Error",
+                    name: lang?.play?.embed?.error || "Error", 
                     iconURL: musicIcons.alertIcon,
                     url: config.SupportServer
                 })
@@ -40,7 +40,6 @@ async function play(client, interaction, lang) {
 
         await interaction.deferReply();
 
-        // Safe resolution wrapper preventing TypeError: Cannot read properties of null (reading 'loadType')
         let resolve;
         try {
             resolve = await client.riffy.resolve({ query: query, requester: interaction.user.username });
@@ -66,14 +65,16 @@ async function play(client, interaction, lang) {
 
         const { loadType, tracks } = resolve;
 
-        // Establish or retrieve voice connection
+        // Establish or retrieve voice connection with explicit voice state flags
         let player = client.riffy.players.get(interaction.guildId);
         if (!player) {
             player = client.riffy.createConnection({
                 guildId: interaction.guildId,
                 voiceChannel: interaction.member.voice.channelId,
                 textChannel: interaction.channelId,
-                deaf: true
+                deaf: true,
+                selfDeaf: true,
+                selfMute: false
             });
         }
 
