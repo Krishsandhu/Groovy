@@ -32,10 +32,14 @@ try {
     }
 }
 
+// Explicit standard gateway intents including essential voice state tracking
 const client = new Client({
-    intents: Object.keys(GatewayIntentBits).map((a) => {
-        return GatewayIntentBits[a];
-    }),
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildVoiceStates,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent,
+    ],
 });
 
 client.config = config;
@@ -78,9 +82,9 @@ fs.readdir(config.commandsDir, (err, files) => {
     });
 });
 
-// Pass voice state updates directly to Riffy with strict opcode dispatch filtering
+// Pass voice state updates directly to Riffy with strict dispatch filtering
 client.on("raw", (d) => {
-    if (![ "VOICE_STATE_UPDATE", "VOICE_SERVER_UPDATE" ].includes(d.t)) return;
+    if (!["VOICE_STATE_UPDATE", "VOICE_SERVER_UPDATE"].includes(d.t)) return;
     if (client.riffy) {
         client.riffy.updateVoiceState(d);
     }
@@ -155,5 +159,5 @@ app.listen(port, "0.0.0.0", () => {
     console.log(`${colors.cyan}[ SERVER ]${colors.reset} ${colors.green}Online ✅${colors.reset}`);
     console.log(`${colors.cyan}[ PORT ]${colors.yellow}http://localhost:${port}${colors.reset}`);
     console.log(`${colors.cyan}[ TIME ]${colors.reset} ${colors.gray}${new Date().toISOString().replace("T", " ").split(".")[0]}${colors.reset}`);
-    console.log(`${colors.cyan}[ USER ]${colors.reset} ${colors.yellow}GlaceYT${colors.reset}`);
+    console.log(`${colors.cyan}[ USER ]${colors.yellow}GlaceYT${colors.reset}`);
 });
