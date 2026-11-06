@@ -8,7 +8,7 @@ async function play(client, interaction, lang) {
     try {
         const query = interaction.options.getString('name');
 
-        if (!interaction.member.voice.channelId) {
+        if (!interaction.member.voice?.channelId) {
             const embed = new EmbedBuilder()
                 .setColor('#ff0000')
                 .setAuthor({ 
@@ -38,26 +38,43 @@ async function play(client, interaction, lang) {
             return;
         }
 
-        const player = client.riffy.createConnection({
-            guildId: interaction.guildId,
-            voiceChannel: interaction.member.voice.channelId,
-            textChannel: interaction.channelId,
-            deaf: true
-        });
-
         await interaction.deferReply();
 
+        // 1. Resolve tracks first
         const resolve = await client.riffy.resolve({ query: query, requester: interaction.user.username });
         if (!resolve || typeof resolve !== 'object') {
             throw new TypeError('Resolve response is not an object');
         }
 
-        const { loadType, tracks, playlistInfo } = resolve;
+        const { loadType, tracks } = resolve;
 
-        if (!Array.isArray(tracks)) {
-            throw new TypeError('Expected tracks to be an array');
+        if (!Array.isArray(tracks) || tracks.length === 0) {
+            const errorEmbed = new EmbedBuilder()
+                .setColor(config.embedColor)
+                .setAuthor({ 
+                    name: lang.play.embed.error,
+                    iconURL: musicIcons.alertIcon,
+                    url: config.SupportServer
+                })
+                .setFooter({ text: lang.footer, iconURL: musicIcons.heartIcon })
+                .setDescription(lang.play.embed.noResults);
+
+            await interaction.editReply({ embeds: [errorEmbed] });
+            return;
         }
 
+        // 2. Obtain or establish the player connection
+        let player = client.riffy.players.get(interaction.guildId);
+        if (!player) {
+            player = client.riffy.createConnection({
+                guildId: interaction.guildId,
+                voiceChannel: interaction.member.voice.channelId,
+                textChannel: interaction.channelId,
+                deaf: true
+            });
+        }
+
+        // 3. Handle Queueing
         if (loadType === 'playlist') {
             for (const track of tracks) {
                 track.info.requester = interaction.user.username;
@@ -77,19 +94,6 @@ async function play(client, interaction, lang) {
             requesters.set(track.info.uri, interaction.user.username);
 
             if (!player.playing && !player.paused) player.play();
-        } else {
-            const errorEmbed = new EmbedBuilder()
-                .setColor(config.embedColor)
-                .setAuthor({ 
-                    name: lang.play.embed.error,
-                    iconURL: musicIcons.alertIcon,
-                    url: config.SupportServer
-                })
-                .setFooter({ text: lang.footer, iconURL: musicIcons.heartIcon })
-                .setDescription(lang.play.embed.noResults);
-
-            await interaction.editReply({ embeds: [errorEmbed] });
-            return;
         }
 
         const randomEmbed = new EmbedBuilder()
@@ -102,7 +106,7 @@ async function play(client, interaction, lang) {
             .setDescription(lang.play.embed.successProcessed)
             .setFooter({ text: lang.footer, iconURL: musicIcons.heartIcon });
 
-        await interaction.followUp({ embeds: [randomEmbed] });
+        await interaction.editReply({ embeds: [randomEmbed] });
 
     } catch (error) {
         console.error('Error processing play command:', error);
