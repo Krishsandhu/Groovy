@@ -13,23 +13,23 @@ module.exports = {
   errorLog: "",
   nodes: [
     {
-      name: "Jirayu-SSL",
-      password: "youshallnotpass",
-      host: "lavalink.jirayu.net",
+      name: "Darren-LavalinkV4",
+      password: "https://dsc.gg/ajidevserver",
+      host: "lava-v4.ajieblogs.eu.org",
       port: 443,
       secure: true
     },
     {
-      name: "Nazha-Free",
-      password: "nazhafreelava",
-      host: "lavalink.nazha.online",
+      name: "IncaDevs-V4",
+      password: "youshallnotpass",
+      host: "lavalink.incadevs.com",
       port: 443,
       secure: true
     },
     {
-      name: "Huntolls-SSL",
+      name: "FreeLava-SSL",
       password: "youshallnotpass",
-      host: "lavalink-v4.huntolls-bot.xyz",
+      host: "lava.link",
       port: 443,
       secure: true
     }
