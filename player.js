@@ -3,8 +3,8 @@ const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBu
 const { queueNames, requesters } = require("./commands/play");
 const Dynamic = require("musicard");
 const config = require("./config.js");
-const musicIcons = require("./UI/icons/musicIcons.js");
-const colors = require("./UI/colors/colors");
+const musicIcons = require('./ui/icons/musicIcons.js');
+const colors = require('./ui/colors/colors.js');
 const fs = require("fs");
 const path = require("path");
 const autoplayCollection = require("./mongodb.js");
