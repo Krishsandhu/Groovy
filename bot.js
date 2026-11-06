@@ -27,7 +27,7 @@ try {
         try {
             colors = require("./ui/colors/colors");
         } catch (e3) {
-            // Falls back to defined ANSI colors
+            // Falls back to defined ANSI codes
         }
     }
 }
@@ -93,21 +93,36 @@ client.login(config.TOKEN || process.env.TOKEN).catch((e) => {
     console.log(`${colors.gray}Error: Turn On Intents or Reset New Token${colors.reset}`);
 });
 
-// Safe database connection handler
+// Safe database connection handler with 24/7 anti-pause keepalive
 async function startDatabase() {
     try {
+        let dbInstance = null;
         if (typeof mongoModule === "function") {
-            await mongoModule();
+            dbInstance = await mongoModule();
         } else if (mongoModule && typeof mongoModule.connect === "function") {
-            await mongoModule.connect();
+            dbInstance = await mongoModule.connect();
         } else if (mongoModule && typeof mongoModule.connectToDatabase === "function") {
-            await mongoModule.connectToDatabase();
+            dbInstance = await mongoModule.connectToDatabase();
         }
 
         console.log("\n" + "-".repeat(40));
         console.log(`${colors.magenta}${colors.bright}  DATABASE STATUS${colors.reset}`);
         console.log("-".repeat(40));
         console.log(`${colors.cyan}[ DATABASE ]${colors.reset} ${colors.green}MongoDB Online ✅${colors.reset}`);
+
+        // 24/7 MongoDB keepalive ping (runs every 12 hours so Atlas never pauses due to inactivity)
+        setInterval(async () => {
+            try {
+                if (dbInstance && typeof dbInstance.command === "function") {
+                    await dbInstance.command({ ping: 1 });
+                } else if (mongoModule?.db?.command) {
+                    await mongoModule.db.command({ ping: 1 });
+                } else if (mongoModule?.findOne) {
+                    await mongoModule.findOne({});
+                }
+            } catch (_) {}
+        }, 1000 * 60 * 60 * 12);
+
     } catch (err) {
         console.log("\n" + "-".repeat(40));
         console.log(`${colors.magenta}${colors.bright}  DATABASE STATUS${colors.reset}`);
