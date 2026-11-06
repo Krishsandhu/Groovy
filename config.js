@@ -11,20 +11,19 @@ module.exports = {
   SupportServer: "https://discord.gg/xQF9f9yUEM",
   embedTimeout: 5,
   errorLog: "",
-  nodes: [
+    nodes: [
     {
-      name: "Nazha-SG1",
-      password: "https://discord.gg/XeSCnk57ZF",
-      host: "sg-1.nazha.online",
+      name: "Jirayu-SSL",
+      password: "youshallnotpass",
+      host: "lavalink.jirayu.net",
       port: 443,
       secure: true
     },
     {
-      name: "Ajie-Node",
-      password: "https://dsc.gg/ajidevserver",
-      host: "lava-v4.ajieblogs.eu.org",
-      port: 443,
-      secure: true
+      name: "CloudeWave-India",
+      password: "cloudewave.in",
+      host: "lavalink.cloudewave.in",
+      port: 2336,
+      secure: false
     }
   ]
-};
