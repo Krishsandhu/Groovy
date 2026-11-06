@@ -2,36 +2,26 @@ const { Client, GatewayIntentBits } = require("discord.js");
 const config = require("./config.js");
 const fs = require("fs");
 const path = require("path");
+const initializePlayer = require("./player");
 const connectToDatabase = require("./mongodb");
-const colors = require("./ui/colors/colors");
 require("dotenv").config();
 
-// Ensure UI icons exist in module cache to prevent MODULE_NOT_FOUND crashes on Render
+// Safe colors loader to prevent MODULE_NOT_FOUND crashes on Render
+let colors = {
+    cyan: "\x1b[36m",
+    green: "\x1b[32m",
+    yellow: "\x1b[33m",
+    red: "\x1b[31m",
+    gray: "\x1b[90m",
+    magenta: "\x1b[35m",
+    bright: "\x1b[1m",
+    reset: "\x1b[0m"
+};
 try {
-    require("./ui/icons/musicIcons.js");
+    colors = require("./ui/colors/colors");
 } catch (e) {
-    const iconPath = path.join(__dirname, "ui", "icons", "musicIcons.js");
-    const iconsDir = path.join(__dirname, "ui", "icons");
-    if (!fs.existsSync(iconsDir)) fs.mkdirSync(iconsDir, { recursive: true });
-    if (!fs.existsSync(iconPath)) {
-        fs.writeFileSync(
-            iconPath,
-            `module.exports = {
-    play: "▶️",
-    pause: "⏸️",
-    stop: "⏹️",
-    skip: "⏭️",
-    previous: "⏮️",
-    loop: "🔁",
-    shuffle: "🔀",
-    volume: "🔊",
-    music: "🎵"
-};`
-        );
-    }
+    // Falls back to standard ANSI codes if the file does not exist
 }
-
-const initializePlayer = require("./player");
 
 const client = new Client({
     intents: Object.keys(GatewayIntentBits).map((a) => {
@@ -79,7 +69,7 @@ fs.readdir(config.commandsDir, (err, files) => {
     });
 });
 
-// Raw voice event forwarder for Riffy
+// Forward raw voice/server updates to Riffy
 client.on("raw", (d) => {
     if (client.riffy) {
         client.riffy.updateVoiceState(d);
