@@ -104,15 +104,16 @@ function initializePlayer(client) {
             const guildId = payload.d?.guild_id || payload.d?.guildId || payload.guild_id || payload.guildId;
             if (guildId) {
                 const guild = client.guilds.cache.get(guildId);
-                if (guild) {
+                if (guild && guild.shard) {
                     guild.shard.send(payload);
                     return;
                 }
             }
-            const firstShard = client.ws?.shards?.first();
-            if (firstShard) firstShard.send(payload);
+            if (client.ws?.shards?.size > 0) {
+                client.ws.shards.first().send(payload);
+            }
         },
-        defaultSearchPlatform: "ytmsearch",
+        defaultSearchPlatform: "scsearch",
         restVersion: "v4",
     });
 
