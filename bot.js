@@ -3,7 +3,8 @@ const config = require("./config.js");
 const fs = require("fs");
 const path = require("path");
 const initializePlayer = require("./player");
-const connectToDatabase = require("./mongodb");
+const mongoModule = require("./mongodb");
+const mongoose = require("mongoose");
 require("dotenv").config();
 
 // Safe colors loader to prevent MODULE_NOT_FOUND crashes on Render
@@ -84,20 +85,34 @@ client.login(config.TOKEN || process.env.TOKEN).catch((e) => {
     console.log(`${colors.gray}Error: Turn On Intents or Reset New Token${colors.reset}`);
 });
 
-connectToDatabase()
-    .then(() => {
+// Safe database connection handler supporting both model exports and functions
+async function startDatabase() {
+    try {
+        if (typeof mongoModule === "function") {
+            await mongoModule();
+        } else if (mongoModule && typeof mongoModule.connect === "function") {
+            await mongoModule.connect();
+        } else if (mongoModule && typeof mongoModule.connectToDatabase === "function") {
+            await mongoModule.connectToDatabase();
+        } else if (process.env.MONGO_URI || config.MONGO_URI || config.mongoUri) {
+            const uri = process.env.MONGO_URI || config.MONGO_URI || config.mongoUri;
+            await mongoose.connect(uri);
+        }
+
         console.log("\n" + "-".repeat(40));
         console.log(`${colors.magenta}${colors.bright}  DATABASE STATUS${colors.reset}`);
         console.log("-".repeat(40));
         console.log(`${colors.cyan}[ DATABASE ]${colors.reset} ${colors.green}MongoDB Online ✅${colors.reset}`);
-    })
-    .catch((err) => {
+    } catch (err) {
         console.log("\n" + "-".repeat(40));
         console.log(`${colors.magenta}${colors.bright}  DATABASE STATUS${colors.reset}`);
         console.log("-".repeat(40));
         console.log(`${colors.cyan}[ DATABASE ]${colors.reset} ${colors.red}Connection Failed ❌${colors.reset}`);
         console.log(`${colors.gray}Error: ${err.message}${colors.reset}`);
-    });
+    }
+}
+
+startDatabase();
 
 const express = require("express");
 const app = express();
