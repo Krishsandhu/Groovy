@@ -16,10 +16,10 @@ module.exports = {
   nodes: [
      {
       name: "Groovy",
-      password: "youshallnotpass",
-      host: "lavalink.jirayu.net",
-      port: 13592,
-      secure: false
+      password: "https://dsc.gg/ajidevserver",
+      host: "lava-v4.ajieblogs.eu.org",
+      port: 443,
+      secure: true
     }
   ]
 }
