@@ -101,11 +101,16 @@ function initializePlayer(client) {
 
     client.riffy = new Riffy(client, nodes, {
         send: (payload) => {
-            const guildId = payload.d?.guild_id || payload.d?.guildId;
-            if (!guildId) return;
-
-            const guild = client.guilds.cache.get(guildId);
-            if (guild) guild.shard.send(payload);
+            const guildId = payload.d?.guild_id || payload.d?.guildId || payload.guild_id || payload.guildId;
+            if (guildId) {
+                const guild = client.guilds.cache.get(guildId);
+                if (guild) {
+                    guild.shard.send(payload);
+                    return;
+                }
+            }
+            const firstShard = client.ws?.shards?.first();
+            if (firstShard) firstShard.send(payload);
         },
         defaultSearchPlatform: "ytmsearch",
         restVersion: "v4",
