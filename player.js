@@ -3,11 +3,41 @@ const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBu
 const { queueNames, requesters } = require("./commands/play");
 const Dynamic = require("musicard");
 const config = require("./config.js");
-const musicIcons = require('./ui/icons/musicIcons.js');
-const colors = require('./ui/colors/colors.js');
 const fs = require("fs");
 const path = require("path");
 const autoplayCollection = require("./mongodb.js");
+
+// Safe loader with fallback to prevent MODULE_NOT_FOUND crashes on Render
+let musicIcons = {
+    playerIcon: "https://cdn.discordapp.com/emojis/853635608099684373.png",
+    heartIcon: "https://cdn.discordapp.com/emojis/853635608099684373.png"
+};
+try {
+    musicIcons = require("./ui/icons/musicIcons.js");
+} catch (e) {
+    try {
+        musicIcons = require("../ui/icons/musicIcons.js");
+    } catch (err) {
+        // Fallback default icons
+    }
+}
+
+let colors = {
+    cyan: "\x1b[36m",
+    green: "\x1b[32m",
+    red: "\x1b[31m",
+    gray: "\x1b[90m",
+    reset: "\x1b[0m"
+};
+try {
+    colors = require("./ui/colors/colors.js");
+} catch (e) {
+    try {
+        colors = require("./ui/colors/colors");
+    } catch (err) {
+        // Fallback console colors
+    }
+}
 
 async function sendMessageWithPermissionsCheck(channel, embed, attachment, actionRow1, actionRow2) {
     try {
@@ -50,7 +80,7 @@ function initializePlayer(client) {
 
     client.riffy = new Riffy(client, nodes, {
         send: (payload) => {
-            const guildId = payload.d.guild_id;
+            const guildId = payload.d?.guild_id || payload.d?.guildId;
             if (!guildId) return;
 
             const guild = client.guilds.cache.get(guildId);
@@ -73,8 +103,10 @@ function initializePlayer(client) {
 
     client.riffy.on("trackStart", async (player, track) => {
         const channel = client.channels.cache.get(player.textChannel);
+        if (!channel) return;
+
         const trackUri = track.info.uri;
-        const requester = requesters.get(trackUri);
+        const requester = requesters.get(trackUri) || "Unknown User";
 
         try {
             const musicard = await Dynamic({
@@ -96,10 +128,10 @@ function initializePlayer(client) {
             const embed = new EmbedBuilder()
                 .setAuthor({
                     name: "Playing Song...",
-                    iconURL: musicIcons.playerIcon,
-                    url: config.SupportServer,
+                    iconURL: musicIcons.playerIcon || undefined,
+                    url: config.SupportServer || "https://discord.gg",
                 })
-                .setFooter({ text: "Developed by Krish | Groover v1.2", iconURL: musicIcons.heartIcon })
+                .setFooter({ text: "Developed by Krish | Groover v1.2", iconURL: musicIcons.heartIcon || undefined })
                 .setTimestamp()
                 .setDescription(
                     `**Title:** [${track.info.title}](${track.info.uri})\n` +
@@ -140,7 +172,6 @@ function initializePlayer(client) {
         currentTrackMessageId = null;
     });
 
-    // FIXED queueEnd: Safeguarded against disconnected playback crashes
     client.riffy.on("queueEnd", async (player) => {
         const channel = client.channels.cache.get(player.textChannel);
         const guildId = player.guildId;
@@ -149,7 +180,6 @@ function initializePlayer(client) {
             const autoplaySetting = await autoplayCollection.findOne({ guildId });
 
             if (autoplaySetting?.autoplay) {
-                // Ensure player voice connection is still alive before requesting next song
                 if (!player.connected) {
                     return player.destroy();
                 }
@@ -175,7 +205,7 @@ function initializePlayer(client) {
     async function disableTrackMessage(client, player) {
         try {
             const channel = client.channels.cache.get(player.textChannel);
-            if (!channel) return;
+            if (!channel || !currentTrackMessageId) return;
             const message = await channel.messages.fetch(currentTrackMessageId).catch(() => null);
             if (message) {
                 const disabledRow1 = createActionRow1(true);
