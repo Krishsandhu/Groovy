@@ -7,18 +7,27 @@ const fs = require("fs");
 const path = require("path");
 const autoplayCollection = require("./mongodb.js");
 
-// Safe icons loader to prevent MODULE_NOT_FOUND crashes on Render
+// Multi-path loader for music icons matching both Linux and Windows casing
 let musicIcons = {
     playerIcon: "https://cdn.discordapp.com/emojis/853635608099684373.png",
     heartIcon: "https://cdn.discordapp.com/emojis/853635608099684373.png"
 };
-try {
-    musicIcons = require("./ui/icons/musicIcons.js");
-} catch (e) {
-    // Default icons retained if missing
+
+const iconPaths = [
+    "./UI/icons/musicicons.js",
+    "./UI/icons/musicIcons.js",
+    "./ui/icons/musicicons.js",
+    "./ui/icons/musicIcons.js"
+];
+
+for (const p of iconPaths) {
+    try {
+        musicIcons = require(p);
+        break;
+    } catch (e) {}
 }
 
-// Safe colors loader to prevent MODULE_NOT_FOUND crashes on Render
+// Multi-path loader for colors
 let colors = {
     cyan: "\x1b[36m",
     green: "\x1b[32m",
@@ -26,10 +35,18 @@ let colors = {
     gray: "\x1b[90m",
     reset: "\x1b[0m"
 };
-try {
-    colors = require("./ui/colors/colors.js");
-} catch (e) {
-    // Default colors retained if missing
+
+const colorPaths = [
+    "./UI/colors/colors.js",
+    "./ui/colors/colors.js",
+    "./ui/colors/colors"
+];
+
+for (const p of colorPaths) {
+    try {
+        colors = require(p);
+        break;
+    } catch (e) {}
 }
 
 async function sendMessageWithPermissionsCheck(channel, embed, attachment, actionRow1, actionRow2) {
@@ -170,7 +187,10 @@ function initializePlayer(client) {
         const guildId = player.guildId;
 
         try {
-            const autoplaySetting = await autoplayCollection.findOne({ guildId });
+            let autoplaySetting = null;
+            if (autoplayCollection && typeof autoplayCollection.findOne === "function") {
+                autoplaySetting = await autoplayCollection.findOne({ guildId });
+            }
 
             if (autoplaySetting?.autoplay) {
                 if (!player.connected) {
