@@ -11,7 +11,7 @@ module.exports = {
   SupportServer: "https://discord.gg/xQF9f9yUEM",
   embedTimeout: 5,
   errorLog: "",
-    nodes: [
+  nodes: [
     {
       name: "Jirayu-SSL",
       password: "youshallnotpass",
@@ -20,10 +20,18 @@ module.exports = {
       secure: true
     },
     {
-      name: "CloudeWave-India",
-      password: "cloudewave.in",
-      host: "lavalink.cloudewave.in",
-      port: 2336,
-      secure: false
+      name: "Nazha-Free",
+      password: "nazhafreelava",
+      host: "lavalink.nazha.online",
+      port: 443,
+      secure: true
+    },
+    {
+      name: "Huntolls-SSL",
+      password: "youshallnotpass",
+      host: "lavalink-v4.huntolls-bot.xyz",
+      port: 443,
+      secure: true
     }
   ]
+};
