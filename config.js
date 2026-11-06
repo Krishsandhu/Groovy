@@ -17,7 +17,7 @@ module.exports = {
      {
       name: "Groovy",
       password: "https://dsc.gg/ajidevserver",
-      host: "lavalinkv4.serenetia.com",
+      host: "lava-v4.ajieblogs.eu.org",
       port: 443,
       secure: true
     }
