@@ -1,7 +1,8 @@
 const { Riffy } = require("riffy");
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder, PermissionsBitField } = require("discord.js");
 const { queueNames, requesters } = require("./commands/play");
-const Dynamic = require("musicard");
+const musicardModule = require("musicard");
+const Dynamic = musicardModule?.Dynamic || musicardModule?.dynamic || musicardModule;
 const config = require("./config.js");
 const fs = require("fs");
 const path = require("path");
@@ -128,27 +129,6 @@ function initializePlayer(client) {
         const trackUri = track.info.uri;
         const requester = requesters.get(trackUri) || "Unknown User";
 
-        let attachment = null;
-        try {
-            const musicard = await Dynamic({
-                thumbnailImage: track.info.thumbnail || "https://cdn.discordapp.com/embed/avatars/0.png",
-                backgroundColor: "#070707",
-                progress: 10,
-                progressColor: "#FF7A00",
-                progressBarColor: "#5F2D00",
-                name: track.info.title,
-                nameColor: "#FF7A00",
-                author: track.info.author || "Unknown Artist",
-                authorColor: "#696969",
-            });
-
-            const cardPath = path.join(__dirname, "musicard.png");
-            fs.writeFileSync(cardPath, musicard);
-            attachment = new AttachmentBuilder(cardPath, { name: "musicard.png" });
-        } catch (imgError) {
-            console.error("Musicard canvas render skipped:", imgError.message);
-        }
-
         const embed = new EmbedBuilder()
             .setTimestamp()
             .setDescription(
@@ -177,8 +157,37 @@ function initializePlayer(client) {
             embed.setFooter({ text: "Developed by Krish | Groover v1.2" });
         }
 
-        if (attachment) {
-            embed.setImage("attachment://musicard.png");
+        let attachment = null;
+        try {
+            const cardGenerator = typeof Dynamic === "function" 
+                ? Dynamic 
+                : (musicardModule?.Dynamic || musicardModule?.dynamic);
+
+            if (typeof cardGenerator === "function") {
+                const musicard = await cardGenerator({
+                    thumbnailImage: track.info.thumbnail || "https://cdn.discordapp.com/embed/avatars/0.png",
+                    backgroundColor: "#070707",
+                    progress: 10,
+                    progressColor: "#FF7A00",
+                    progressBarColor: "#5F2D00",
+                    name: track.info.title,
+                    nameColor: "#FF7A00",
+                    author: track.info.author || "Unknown Artist",
+                    authorColor: "#696969",
+                });
+
+                const cardPath = path.join(__dirname, "musicard.png");
+                fs.writeFileSync(cardPath, musicard);
+                attachment = new AttachmentBuilder(cardPath, { name: "musicard.png" });
+                embed.setImage("attachment://musicard.png");
+            } else if (track.info.thumbnail && isValidUrl(track.info.thumbnail)) {
+                embed.setImage(track.info.thumbnail);
+            }
+        } catch (imgError) {
+            console.error("Musicard canvas render skipped:", imgError.message);
+            if (track.info.thumbnail && isValidUrl(track.info.thumbnail)) {
+                embed.setImage(track.info.thumbnail);
+            }
         }
 
         const actionRow1 = createActionRow1(false);
