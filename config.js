@@ -16,9 +16,9 @@ module.exports = {
   nodes: [
      {
       name: "Groovy",
-      password: "Kaun.Yuvraj",
-      host: "108.181.221.203",
-      port: 30001,
+      password: "QBwKDeyvctKyTnCwHEuq6mHx",
+      host: "fi18.bot-hosting.cloud",
+      port: 25689,
       secure: false
     }
   ]
