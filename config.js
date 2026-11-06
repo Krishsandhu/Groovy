@@ -1,19 +1,17 @@
-
-
 module.exports = {
   TOKEN: "",
   language: "en",
-  ownerID: ["937004195008102462", ""], 
+  ownerID: ["937004195008102462", ""],
   mongodbUri: process.env.MONGO_URI || "",
   setupFilePath: './commands/setup.json',
-  commandsDir: './commands',  
+  commandsDir: './commands',
   embedColor: "#1db954",
-  activityName: "MUSIC", 
-  activityType: "LISTENING",  // Available activity types : LISTENING , PLAYING
+  activityName: "MUSIC",
+  activityType: "LISTENING",
   SupportServer: "https://discord.gg/xQF9f9yUEM",
-  embedTimeout: 5, 
-  errorLog: "", 
-    nodes: [
+  embedTimeout: 5,
+  errorLog: "",
+  nodes: [
     {
       name: "Riffy-India",
       password: "horizxon.studio",
@@ -29,3 +27,4 @@ module.exports = {
       secure: false
     }
   ]
+};
