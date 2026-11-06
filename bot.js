@@ -4,7 +4,7 @@ const fs = require("fs");
 const path = require("path");
 const initializePlayer = require("./player");
 const connectToDatabase = require("./mongodb");
-const colors = require("./UI/colors/colors");
+const colors = require("./ui/colors/colors");
 require("dotenv").config();
 
 const client = new Client({
