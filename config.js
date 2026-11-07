@@ -1,5 +1,5 @@
 module.exports = {
-  TOKEN: "",
+  TOKEN: process.env.TOKEN || "",
   language: "en",
   ownerID: ["937004195008102462", ""],
   mongodbUri: process.env.MONGO_URI || "",
@@ -13,11 +13,25 @@ module.exports = {
   errorLog: "",
   nodes: [
     {
-      name: "Groover-Private-Node",
-      password: "groover_secret_pass_2026",
-      host: "lavalink-vu4a.onrender.com",
-      port: 443,
-      secure: true
+      name: "Riffy-Mumbai-V4",
+      host: "lava4.horizxon.studio",
+      port: 80,
+      password: "horizxon.studio",
+      secure: false
+    },
+    {
+      name: "Riffy-Singapore-V4",
+      host: "lava1.horizxon.studio",
+      port: 80,
+      password: "horizxon.studio",
+      secure: false
+    },
+    {
+      name: "Riffy-AjieDev-V4",
+      host: "lava-v4.ajieblogs.eu.org",
+      port: 80,
+      password: "https://dsc.gg/ajidevserver",
+      secure: false
     }
   ]
 };
