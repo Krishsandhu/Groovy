@@ -98,6 +98,7 @@ function initializePlayer(client) {
         secure: node.secure,
         version: "v4",
         restVersion: "v4",
+        path: "/v4/websocket",
         reconnectTimeout: 5000,
         reconnectTries: Infinity,
     }));
@@ -109,7 +110,7 @@ function initializePlayer(client) {
                 guild.shard.send(payload);
             }
         },
-        defaultSearchPlatform: "ytsearch",
+        defaultSearchPlatform: "scsearch", // SoundCloud search bypasses Render YouTube 429 blocks
         restVersion: "v4",
     });
 
@@ -122,6 +123,14 @@ function initializePlayer(client) {
 
     client.riffy.on("nodeError", (node, error) => {
         console.log(`${colors.cyan}[ LAVALINK ]${colors.reset} ${colors.red}Node ${node.name} Error ❌ | ${error.message}${colors.reset}`);
+    });
+
+    client.riffy.on("trackError", (player, track, payload) => {
+        console.error(`[ TRACK ERROR ] ${track?.info?.title}:`, payload);
+        const channel = client.channels.cache.get(player.textChannel);
+        if (channel) {
+            sendEmbed(channel, `⚠️ Failed to play **${track?.info?.title || "Track"}**: \`${payload?.exception?.message || "Playback error"}\``);
+        }
     });
 
     client.riffy.on("trackStart", async (player, track) => {
