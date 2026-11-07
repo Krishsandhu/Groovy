@@ -89,13 +89,14 @@ async function sendMessageWithPermissionsCheck(channel, embed, attachment, actio
 }
 
 function initializePlayer(client) {
-    // Preserve v4 routing options so Riffy doesn't fall back to v3 paths
+    // Explicitly configure v4 for WebSocket and REST routing
     const nodes = config.nodes.map((node) => ({
         name: node.name,
         host: node.host,
         port: node.port,
         password: node.password,
         secure: node.secure,
+        version: "v4",
         restVersion: "v4",
         reconnectTimeout: 5000,
         reconnectTries: Infinity,
