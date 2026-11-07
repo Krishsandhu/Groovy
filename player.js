@@ -89,12 +89,14 @@ async function sendMessageWithPermissionsCheck(channel, embed, attachment, actio
 }
 
 function initializePlayer(client) {
+    // Preserve v4 routing options so Riffy doesn't fall back to v3 paths
     const nodes = config.nodes.map((node) => ({
         name: node.name,
         host: node.host,
         port: node.port,
         password: node.password,
         secure: node.secure,
+        restVersion: "v4",
         reconnectTimeout: 5000,
         reconnectTries: Infinity,
     }));
@@ -106,7 +108,7 @@ function initializePlayer(client) {
                 guild.shard.send(payload);
             }
         },
-        defaultSearchPlatform: "scsearch",
+        defaultSearchPlatform: "ytsearch",
         restVersion: "v4",
     });
 
