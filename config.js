@@ -13,23 +13,9 @@ module.exports = {
   errorLog: "",
   nodes: [
     {
-      name: "Darren-LavalinkV4",
-      password: "https://dsc.gg/ajidevserver",
-      host: "lava-v4.ajieblogs.eu.org",
-      port: 443,
-      secure: true
-    },
-    {
-      name: "IncaDevs-V4",
-      password: "youshallnotpass",
-      host: "lavalink.incadevs.com",
-      port: 443,
-      secure: true
-    },
-    {
-      name: "FreeLava-SSL",
-      password: "youshallnotpass",
-      host: "lava.link",
+      name: "Groover-Private-Node",
+      password: "groover_secret_pass_2026",
+      host: "lavalink-yu4a.onrender.com",
       port: 443,
       secure: true
     }
