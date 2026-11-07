@@ -13,24 +13,17 @@ module.exports = {
   errorLog: "",
   nodes: [
     {
-      name: "Riffy-Mumbai-V4",
-      host: "lava4.horizxon.studio",
-      port: 80,
-      password: "horizxon.studio",
-      secure: false
-    },
-    {
-      name: "Riffy-Singapore-V4",
-      host: "lava1.horizxon.studio",
-      port: 80,
-      password: "horizxon.studio",
-      secure: false
-    },
-    {
-      name: "Riffy-AjieDev-V4",
+      name: "Riffy-Ajie-V4",
       host: "lava-v4.ajieblogs.eu.org",
       port: 80,
       password: "https://dsc.gg/ajidevserver",
+      secure: false
+    },
+    {
+      name: "CloudeWave-V4",
+      host: "lavalink.cloudewave.in",
+      port: 2336,
+      password: "cloudewave.in",
       secure: false
     }
   ]
