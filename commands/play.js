@@ -38,22 +38,13 @@ async function play(client, interaction, lang) {
 
         await interaction.deferReply();
 
-        // 1. Establish player connection first so voice state begins handshaking
-        let player = client.riffy.players.get(interaction.guildId);
-        if (!player) {
-            player = client.riffy.createConnection({
-                guildId: interaction.guildId,
-                voiceChannel: interaction.member.voice.channelId,
-                textChannel: interaction.channelId,
-                deaf: true
-            });
-        }
-
-        // 2. Resolve query via Riffy
+        // 1. Resolve first: checks whether input is direct URL or raw search query
+        const isUrl = /^https?:\/\//i.test(query.trim());
         let resolve;
         try {
             resolve = await client.riffy.resolve({ 
                 query: query, 
+                source: isUrl ? undefined : "scsearch", // SoundCloud search prevents YouTube 429 errors on plain text
                 requester: interaction.user.username 
             });
         } catch (resErr) {
@@ -70,14 +61,20 @@ async function play(client, interaction, lang) {
                     url: config.SupportServer
                 })
                 .setFooter({ text: lang?.footer || "Groover Music", iconURL: musicIcons?.heartIcon })
-                .setDescription("❌ Could not load this track or search query. If this is a YouTube link, the node may be rate-limited. Try typing song keywords or using a direct audio link!");
-
-            // If queue is empty, clean up the empty connection
-            if (player.queue.length === 0 && !player.playing) {
-                player.destroy();
-            }
+                .setDescription("❌ Could not load this track or search query. Try typing different keywords or provide a direct link!");
 
             return await interaction.editReply({ embeds: [errorEmbed] });
+        }
+
+        // 2. Establish connection only after tracks are confirmed valid
+        let player = client.riffy.players.get(interaction.guildId);
+        if (!player) {
+            player = client.riffy.createConnection({
+                guildId: interaction.guildId,
+                voiceChannel: interaction.member.voice.channelId,
+                textChannel: interaction.channelId,
+                deaf: true
+            });
         }
 
         const { loadType, tracks, playlistInfo } = resolve;
