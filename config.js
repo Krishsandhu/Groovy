@@ -15,7 +15,7 @@ module.exports = {
     {
       name: "Groover-Private-Node",
       password: "groover_secret_pass_2026",
-      host: "lavalink-yu4a.onrender.com",
+      host: "lavalink-vu4a.onrender.com",
       port: 443,
       secure: true
     }
