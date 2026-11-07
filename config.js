@@ -13,18 +13,18 @@ module.exports = {
   errorLog: "",
   nodes: [
     {
-      name: "Riffy-Ajie-V4",
+      name: "AjieDev-V4-SSL",
       host: "lava-v4.ajieblogs.eu.org",
-      port: 80,
+      port: 443,
       password: "https://dsc.gg/ajidevserver",
-      secure: false
+      secure: true
     },
     {
-      name: "CloudeWave-V4",
-      host: "lavalink.cloudewave.in",
-      port: 2336,
-      password: "cloudewave.in",
-      secure: false
+      name: "Inari-V4-SSL",
+      host: "lavalink.inari.site",
+      port: 443,
+      password: "youshallnotpass",
+      secure: true
     }
   ]
 };
