@@ -38,15 +38,17 @@ async function play(client, interaction, lang) {
 
         await interaction.deferReply();
 
-        // 1. Resolve first: checks whether input is direct URL or raw search query
+        // Check if query is a direct link; if not, prepend SoundCloud search prefix
         const isUrl = /^https?:\/\//i.test(query.trim());
+        const searchQuery = isUrl ? query.trim() : `scsearch:${query.trim()}`;
+
         let resolve;
         try {
             resolve = await client.riffy.resolve({ 
-                query: query, 
-                source: isUrl ? undefined : "scsearch", // SoundCloud search prevents YouTube 429 errors on plain text
+                query: searchQuery, 
                 requester: interaction.user.username 
             });
+            console.log("Riffy Resolve LoadType:", resolve?.loadType, "Tracks found:", resolve?.tracks?.length || 0);
         } catch (resErr) {
             console.error("Resolve error:", resErr);
             resolve = null;
@@ -66,7 +68,7 @@ async function play(client, interaction, lang) {
             return await interaction.editReply({ embeds: [errorEmbed] });
         }
 
-        // 2. Establish connection only after tracks are confirmed valid
+        // Establish connection only after tracks are confirmed valid
         let player = client.riffy.players.get(interaction.guildId);
         if (!player) {
             player = client.riffy.createConnection({
