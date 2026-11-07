@@ -13,18 +13,18 @@ module.exports = {
   errorLog: "",
   nodes: [
     {
-      name: "AjieDev-V4-SSL",
-      host: "lava-v4.ajieblogs.eu.org",
-      port: 443,
-      password: "https://dsc.gg/ajidevserver",
-      secure: true
+      name: "G3V-Lavalink-V4",
+      host: "lava.g3v.co.uk",
+      port: 9008,
+      password: "lavalinklol",
+      secure: false
     },
     {
-      name: "Inari-V4-SSL",
-      host: "lavalink.inari.site",
-      port: 443,
-      password: "youshallnotpass",
-      secure: true
+      name: "Ajie-V4-Fallback",
+      host: "lava-v4.ajieblogs.eu.org",
+      port: 80,
+      password: "https://dsc.gg/ajidevserver",
+      secure: false
     }
   ]
 };
