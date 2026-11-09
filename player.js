@@ -159,7 +159,7 @@ function initializePlayer(client) {
         const channel = client.channels.cache.get(player.textChannel);
         if (!channel) return;
 
-        // Store track author and title for autoplay discovery
+        // Store track details for Spotify Autoplay discovery
         if (track?.info?.author) player.set('lastAuthor', track.info.author);
         if (track?.info?.title) player.set('lastTitle', track.info.title);
 
@@ -174,7 +174,7 @@ function initializePlayer(client) {
                 `**Length:** ${formatDuration(track.info.length)}\n` +
                 `**Requester:** ${requester}\n` +
                 `**Source:** ${track.info.sourceName}\n\n` +
-                `**Controls:** 🔁 \`Loop\`, ❌ \`Disable\`, ⏭️ \`Skip\``
+                `**Controls:** 🔁 \`Loop\`, ❌ \`Disable\`, ⏭️ \`Skip\`, 📜 \`Queue\`, 🗑️ \`Clear\`, ⏹️ \`Stop\`, ⏸️ \`Pause\`, ▶️ \`Resume\`, 🔊 \`Vol+\`, 🔉 \`Vol-\``
             )
             .setColor("#FF7A00");
 
@@ -248,7 +248,6 @@ function initializePlayer(client) {
         currentTrackMessageId = null;
     });
 
-    // Triggers strictly when a song ends naturally and the queue is empty
     client.riffy.on("queueEnd", async (player) => {
         const channel = client.channels.cache.get(player.textChannel);
         const guildId = player.guildId;
@@ -267,7 +266,6 @@ function initializePlayer(client) {
                     const lastAuthor = player.get('lastAuthor') || "Pop";
                     const lastTitle = player.get('lastTitle') || "";
 
-                    // Query Spotify search for other tracks by this artist or related music
                     const searchQuery = encodeURIComponent(`artist:"${lastAuthor}"`);
                     const searchRes = await fetch(`https://api.spotify.com/v1/search?q=${searchQuery}&type=track&limit=10`, {
                         headers: { "Authorization": `Bearer ${token}` }
@@ -277,7 +275,6 @@ function initializePlayer(client) {
                         const searchData = await searchRes.json();
                         const tracks = searchData?.tracks?.items || [];
                         
-                        // Select a different song by the same artist/genre
                         const candidate = tracks.find(t => t.name.toLowerCase() !== lastTitle.toLowerCase()) || tracks[0];
 
                         if (candidate?.external_urls?.spotify) {
@@ -300,7 +297,6 @@ function initializePlayer(client) {
                 }
             }
 
-            // Cleanup when autoplay is disabled or resolution finds nothing
             player.destroy();
             if (channel) {
                 sendEmbed(channel, "Queue has ended. Leaving voice channel.");
@@ -388,7 +384,6 @@ function initializePlayer(client) {
                 toggleLoop(player, channel);
                 break;
             case "skipTrack":
-                // Only allow skip if there is actually another song queued
                 if (!player.queue || player.queue.length === 0) {
                     await sendEmbed(channel, "⚠️ **No tracks in queue to skip to! Use `/play` to add more tracks.**");
                     return;
