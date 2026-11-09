@@ -40,12 +40,15 @@ async function play(client, interaction, lang) {
         }
 
         let rawQuery = query.trim();
+        const isUrl = /^https?:\/\//i.test(rawQuery);
         let resolve = null;
 
-        // 2. Primary Resolve Attempt
+        // 2. Primary Search: If not a URL, route through Spotify search (spsearch:)
+        const primaryQuery = isUrl ? rawQuery : `spsearch:${rawQuery}`;
+
         try {
             resolve = await client.riffy.resolve({ 
-                query: rawQuery, 
+                query: primaryQuery, 
                 requester: interaction.user.username 
             });
             console.log("Riffy Primary Resolve Response:", JSON.stringify(resolve, null, 2));
@@ -53,10 +56,9 @@ async function play(client, interaction, lang) {
             console.error("Primary Resolve Error:", resErr);
         }
 
-        // 3. Fallback to SoundCloud if plain search returned an error or empty
-        const isUrl = /^https?:\/\//i.test(rawQuery);
+        // 3. Secondary Fallback: If Spotify/Direct URL failed or returned empty, try SoundCloud (scsearch:)
         if (!isUrl && (!resolve || resolve.loadType === "error" || resolve.loadType === "empty" || !resolve.tracks?.length)) {
-            console.log("Primary search failed or blocked. Attempting SoundCloud fallback...");
+            console.log("Spotify search failed or empty. Attempting SoundCloud fallback...");
             try {
                 resolve = await client.riffy.resolve({
                     query: `scsearch:${rawQuery}`,
@@ -68,7 +70,7 @@ async function play(client, interaction, lang) {
             }
         }
 
-        // 4. Check if all resolution attempts failed
+        // 4. If all sources failed or no tracks were found
         if (!resolve || resolve.loadType === "error" || resolve.loadType === "empty" || !resolve.tracks || resolve.tracks.length === 0) {
             const errorEmbed = new EmbedBuilder()
                 .setColor('#ff0000')
@@ -78,12 +80,12 @@ async function play(client, interaction, lang) {
                     url: config.SupportServer
                 })
                 .setFooter({ text: lang?.footer || "Groover Music", iconURL: musicIcons?.heartIcon })
-                .setDescription("❌ Could not load this track or search query. Try typing different keywords or provide a direct link!");
+                .setDescription("❌ Could not load this track or search query. Try typing the artist and track title or provide a direct link!");
 
             return await interaction.editReply({ embeds: [errorEmbed] });
         }
 
-        // 5. Establish voice connection after confirming tracks exist
+        // 5. Connect to voice channel once tracks are confirmed
         let player = client.riffy.players.get(interaction.guildId);
         if (!player) {
             player = client.riffy.createConnection({
@@ -96,6 +98,7 @@ async function play(client, interaction, lang) {
 
         const { loadType, tracks, playlistInfo } = resolve;
 
+        // Handle Playlists
         if (loadType === 'playlist' || loadType === 'PLAYLIST_LOADED') {
             for (const track of tracks) {
                 track.info.requester = interaction.user.username;
@@ -118,6 +121,7 @@ async function play(client, interaction, lang) {
 
             return await interaction.editReply({ embeds: [playlistEmbed] });
 
+        // Handle Single Tracks or Search Results
         } else if (loadType === 'search' || loadType === 'track' || loadType === 'SEARCH_RESULT' || loadType === 'TRACK_LOADED') {
             const track = tracks.shift();
             track.info.requester = interaction.user.username;
