@@ -4,61 +4,12 @@ const musicIcons = require('../UI/icons/musicicons.js');
 const queueNames = [];
 const requesters = new Map();
 
+// Matches standard YouTube video, music, and short links
 const YOUTUBE_REGEX = /^(https?:\/\/)?(www\.|m\.)?(youtube\.com|youtu\.be)\/.+/i;
-
-/**
- * Fetch song title from YouTube using a browser user-agent
- */
-async function getYouTubeTitle(url) {
-    try {
-        const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`;
-        const res = await fetch(oembedUrl, {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-            }
-        });
-        if (!res.ok) return null;
-        const data = await res.json();
-        return data.title || null;
-    } catch (e) {
-        return null;
-    }
-}
-
-/**
- * Resolves any song query to a direct Spotify URL using Spotify's public embed endpoint
- */
-async function searchSpotifyTrackUrl(query) {
-    try {
-        // Query Spotify embed search (no API keys required)
-        const cleanQuery = query.replace(/[^\w\s]/gi, ' ').trim();
-        const searchUrl = `https://open.spotify.com/oembed?url=https://open.spotify.com/track/`;
-        // Fallback: If it's already a spotify link, return it
-        if (/open\.spotify\.com/i.test(query)) return query;
-
-        // Fetch track metadata through iTunes/Spotify fallback to get high-fidelity matching
-        const itunesUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(cleanQuery)}&entity=song&limit=1`;
-        const res = await fetch(itunesUrl);
-        if (res.ok) {
-            const data = await res.json();
-            if (data.results && data.results.length > 0) {
-                const track = data.results[0];
-                return {
-                    title: track.trackName,
-                    artist: track.artistName,
-                    searchStr: `${track.trackName} ${track.artistName}`
-                };
-            }
-        }
-        return { searchStr: cleanQuery };
-    } catch (err) {
-        return { searchStr: query };
-    }
-}
 
 async function play(client, interaction, lang) {
     try {
-        // 1. Immediately acknowledge Discord interaction
+        // 1. Immediately acknowledge Discord interaction (eliminates 3s timeout)
         await interaction.deferReply();
 
         const query = interaction.options.getString('name');
@@ -67,12 +18,12 @@ async function play(client, interaction, lang) {
             const embed = new EmbedBuilder()
                 .setColor('#ff0000')
                 .setAuthor({ 
-                    name: lang?.play?.embed?.error || "Error", 
+                    name: lang?.play?.embed?.error || "Voice Channel Required", 
                     iconURL: musicIcons?.alertIcon,
                     url: config.SupportServer
                 })
                 .setFooter({ text: lang?.footer || "Groover Music", iconURL: musicIcons?.heartIcon })
-                .setDescription(lang?.play?.embed?.noVoiceChannel || "You must be in a voice channel to use this command!");
+                .setDescription(lang?.play?.embed?.noVoiceChannel || "You must join a voice channel before using this command!");
 
             return await interaction.editReply({ embeds: [embed] });
         }
@@ -81,59 +32,62 @@ async function play(client, interaction, lang) {
             const embed = new EmbedBuilder()
                 .setColor('#ff0000')
                 .setAuthor({ 
-                    name: lang?.play?.embed?.error || "Error", 
+                    name: lang?.play?.embed?.error || "Node Offline", 
                     iconURL: musicIcons?.alertIcon,
                     url: config.SupportServer
                 })
                 .setFooter({ text: lang?.footer || "Groover Music", iconURL: musicIcons?.heartIcon })
-                .setDescription(lang?.play?.embed?.noLavalinkNodes || "No Lavalink nodes are currently available. Please try again shortly.");
+                .setDescription(lang?.play?.embed?.noLavalinkNodes || "No audio nodes are currently connected. Please try again in a few moments.");
 
             return await interaction.editReply({ embeds: [embed] });
         }
 
         let rawQuery = query.trim();
-        let targetQuery = rawQuery;
-        let originalYTTitle = "";
 
-        // 2. Handle YouTube Links
+        // 2. Intercept YouTube links immediately with clear user guidance
         if (YOUTUBE_REGEX.test(rawQuery)) {
-            const ytTitle = await getYouTubeTitle(rawQuery);
-            if (ytTitle) {
-                originalYTTitle = ytTitle;
-                targetQuery = ytTitle;
-            } else {
-                const ytNoticeEmbed = new EmbedBuilder()
-                    .setColor('#ff0000')
-                    .setAuthor({ name: "YouTube Error", iconURL: musicIcons?.alertIcon, url: config.SupportServer })
-                    .setDescription("❌ Could not read this YouTube URL. Direct YouTube streams are blocked; please type the song name or use a Spotify link!");
+            const ytEmbed = new EmbedBuilder()
+                .setColor('#ff3333')
+                .setAuthor({ 
+                    name: "YouTube Link Unavailable", 
+                    iconURL: musicIcons?.alertIcon,
+                    url: config.SupportServer
+                })
+                .setTitle("⚠️ Direct YouTube Links Are Blocked")
+                .setDescription(
+                    "Datacenter audio nodes are currently blocked by YouTube from streaming direct links.\n\n" +
+                    "**How to play your track:**\n" +
+                    "• **Type the song name directly:** `/play name: song title - artist`\n" +
+                    "• **Use a Spotify link:** `/play name: https://open.spotify.com/track/...`\n" +
+                    "• **Use a Spotify playlist:** `/play name: https://open.spotify.com/playlist/...`"
+                )
+                .setFooter({ text: "Groover Music | Smart Resolver", iconURL: musicIcons?.heartIcon });
 
-                return await interaction.editReply({ embeds: [ytNoticeEmbed] });
-            }
+            return await interaction.editReply({ embeds: [ytEmbed] });
         }
 
-        const isDirectUrl = /^https?:\/\//i.test(targetQuery);
+        const isDirectUrl = /^https?:\/\//i.test(rawQuery);
         let resolve = null;
 
-        // 3. Resolve using Riffy with safe null handling
+        // 3. Resolve track via Riffy / Lavalink safely
         try {
             if (isDirectUrl) {
-                // Direct Spotify / URL
+                // Direct Spotify / supported web link
                 resolve = await client.riffy.resolve({ 
-                    query: targetQuery, 
+                    query: rawQuery, 
                     requester: interaction.user.username 
                 });
             } else {
-                // Search resolution: query Spotify search engine supported by LavaSrc
-                // If LavaSrc uses spsearch:
+                // Try Spotify search first (spsearch:)
                 resolve = await client.riffy.resolve({
-                    query: `spsearch:${targetQuery}`,
+                    query: `spsearch:${rawQuery}`,
                     requester: interaction.user.username
                 }).catch(() => null);
 
-                // If spsearch returned null or empty, try direct query
-                if (!resolve || resolve.loadType === "error" || resolve.loadType === "empty" || !resolve.tracks?.length) {
+                // Fallback to standard search if spsearch returned empty/null
+                if (!resolve || resolve.loadType === 'empty' || resolve.loadType === 'error' || !resolve.tracks?.length) {
                     resolve = await client.riffy.resolve({
-                        query: targetQuery,
+                        query: rawQuery,
                         requester: interaction.user.username
                     }).catch(() => null);
                 }
@@ -143,22 +97,22 @@ async function play(client, interaction, lang) {
             resolve = null;
         }
 
-        // 4. If nothing resolved
+        // 4. Handle unresolved / empty track response cleanly
         if (!resolve || resolve.loadType === "error" || resolve.loadType === "empty" || !resolve.tracks || resolve.tracks.length === 0) {
             const errorEmbed = new EmbedBuilder()
                 .setColor('#ff0000')
                 .setAuthor({ 
-                    name: lang?.play?.embed?.error || "No Results",
+                    name: lang?.play?.embed?.error || "Track Not Found",
                     iconURL: musicIcons?.alertIcon,
                     url: config.SupportServer
                 })
                 .setFooter({ text: lang?.footer || "Groover Music", iconURL: musicIcons?.heartIcon })
-                .setDescription("❌ Could not load this track. Because YouTube blocks datacenter nodes, please use a **Spotify link** (e.g. `https://open.spotify.com/track/...`) for 100% reliable playback!");
+                .setDescription("❌ Could not find this track. Try specifying both the **song name and artist**, or paste a direct **Spotify track link**!");
 
             return await interaction.editReply({ embeds: [errorEmbed] });
         }
 
-        // 5. Connect to Voice
+        // 5. Connect to Voice Channel
         let player = client.riffy.players.get(interaction.guildId);
         if (!player) {
             player = client.riffy.createConnection({
@@ -194,7 +148,7 @@ async function play(client, interaction, lang) {
 
             return await interaction.editReply({ embeds: [playlistEmbed] });
 
-        // 7. Handle Single Tracks
+        // 7. Handle Single Tracks / Searches
         } else if (loadType === 'search' || loadType === 'track' || loadType === 'SEARCH_RESULT' || loadType === 'TRACK_LOADED') {
             const track = tracks.shift();
             track.info.requester = interaction.user.username;
@@ -205,11 +159,6 @@ async function play(client, interaction, lang) {
 
             if (!player.playing && !player.paused) player.play();
 
-            let descriptionText = `🎵 Added **[${track.info.title}](${track.info.uri})** by \`${track.info.author}\` to queue!`;
-            if (originalYTTitle) {
-                descriptionText += `\n*(Redirected from: **${originalYTTitle}**)*`;
-            }
-
             const trackEmbed = new EmbedBuilder()
                 .setColor(config.embedColor || "#1db954")
                 .setAuthor({
@@ -217,7 +166,7 @@ async function play(client, interaction, lang) {
                     iconURL: musicIcons?.beats2Icon,
                     url: config.SupportServer
                 })
-                .setDescription(descriptionText)
+                .setDescription(`🎵 Added **[${track.info.title}](${track.info.uri})** by \`${track.info.author}\` to queue!`)
                 .setFooter({ text: lang?.footer || "Groover Music", iconURL: musicIcons?.heartIcon });
 
             return await interaction.editReply({ embeds: [trackEmbed] });
