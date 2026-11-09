@@ -159,7 +159,7 @@ function initializePlayer(client) {
         const channel = client.channels.cache.get(player.textChannel);
         if (!channel) return;
 
-        // Store track details for Spotify Autoplay discovery
+        // Store track author and title for autoplay discovery
         if (track?.info?.author) player.set('lastAuthor', track.info.author);
         if (track?.info?.title) player.set('lastTitle', track.info.title);
 
@@ -248,6 +248,7 @@ function initializePlayer(client) {
         currentTrackMessageId = null;
     });
 
+    // Triggers strictly when a song ends naturally and the queue is empty
     client.riffy.on("queueEnd", async (player) => {
         const channel = client.channels.cache.get(player.textChannel);
         const guildId = player.guildId;
@@ -255,48 +256,69 @@ function initializePlayer(client) {
         try {
             let isAutoplayEnabled = player.isAutoplay;
 
-            if (isAutoplayEnabled === undefined && autoplayCollection?.findOne) {
-                const doc = await autoplayCollection.findOne({ guildId }).catch(() => null);
-                isAutoplayEnabled = doc ? doc.autoplay : false;
-            }
-
-            if (isAutoplayEnabled && player.connected) {
-                const token = await getSpotifyApiToken();
-                if (token) {
-                    const lastAuthor = player.get('lastAuthor') || "Pop";
-                    const lastTitle = player.get('lastTitle') || "";
-
-                    const searchQuery = encodeURIComponent(`artist:"${lastAuthor}"`);
-                    const searchRes = await fetch(`https://api.spotify.com/v1/search?q=${searchQuery}&type=track&limit=10`, {
-                        headers: { "Authorization": `Bearer ${token}` }
-                    });
-
-                    if (searchRes.ok) {
-                        const searchData = await searchRes.json();
-                        const tracks = searchData?.tracks?.items || [];
-                        
-                        const candidate = tracks.find(t => t.name.toLowerCase() !== lastTitle.toLowerCase()) || tracks[0];
-
-                        if (candidate?.external_urls?.spotify) {
-                            const resolve = await client.riffy.resolve({
-                                query: candidate.external_urls.spotify,
-                                requester: "Autoplay"
-                            });
-
-                            if (resolve?.tracks?.length > 0) {
-                                const nextTrack = resolve.tracks[0];
-                                nextTrack.info.requester = "Autoplay";
-                                requesters.set(nextTrack.info.uri, "Autoplay");
-                                player.queue.add(nextTrack);
-                                return player.play();
-                            }
-                        }
-                    } else {
-                        console.error("Spotify Autoplay Search Error:", searchRes.status);
-                    }
+            // Check MongoDB if the in-memory flag is not explicitly true
+            if (!isAutoplayEnabled && autoplayCollection?.findOne) {
+                try {
+                    const doc = await autoplayCollection.findOne({ guildId });
+                    isAutoplayEnabled = doc?.autoplay || false;
+                } catch (dbErr) {
+                    console.error("Autoplay MongoDB check failed:", dbErr.message);
                 }
             }
 
+            console.log(`[ AUTOPLAY ] Guild: ${guildId} | Enabled: ${isAutoplayEnabled}`);
+
+            if (isAutoplayEnabled && player.connected) {
+                const token = await getSpotifyApiToken();
+                const rawAuthor = player.get('lastAuthor') || "Punjabi";
+                const lastTitle = player.get('lastTitle') || "";
+
+                // Extract primary artist (e.g., "Navaan Sandhu, Haakam" -> "Navaan Sandhu")
+                const primaryArtist = rawAuthor.split(/[,&/]/)[0].trim();
+
+                let nextSongQuery = null;
+
+                if (token) {
+                    const searchQuery = encodeURIComponent(`artist:"${primaryArtist}"`);
+                    const searchRes = await fetch(`https://api.spotify.com/v1/search?q=${searchQuery}&type=track&limit=10`, {
+                        headers: { "Authorization": `Bearer ${token}` }
+                    }).catch(() => null);
+
+                    if (searchRes && searchRes.ok) {
+                        const searchData = await searchRes.json();
+                        const tracks = searchData?.tracks?.items || [];
+                        const candidate = tracks.find(t => t.name.toLowerCase() !== lastTitle.toLowerCase()) || tracks[0];
+                        if (candidate?.external_urls?.spotify) {
+                            nextSongQuery = candidate.external_urls.spotify;
+                        }
+                    }
+                }
+
+                // Fallback to internal spsearch if external fetch was empty
+                if (!nextSongQuery) {
+                    nextSongQuery = `spsearch:${primaryArtist} top tracks`;
+                }
+
+                console.log(`[ AUTOPLAY ] Searching next song for query: ${nextSongQuery}`);
+
+                const resolve = await client.riffy.resolve({
+                    query: nextSongQuery,
+                    requester: "Autoplay"
+                });
+
+                if (resolve?.tracks?.length > 0) {
+                    const nextTrack = resolve.tracks[0];
+                    nextTrack.info.requester = "Autoplay";
+                    requesters.set(nextTrack.info.uri, "Autoplay");
+                    player.queue.add(nextTrack);
+                    console.log(`[ AUTOPLAY ] Successfully queued: ${nextTrack.info.title}`);
+                    return player.play();
+                } else {
+                    console.log("[ AUTOPLAY ] Resolve found no playable tracks on Lavalink.");
+                }
+            }
+
+            // Cleanup when autoplay is disabled or resolution finds nothing
             player.destroy();
             if (channel) {
                 sendEmbed(channel, "Queue has ended. Leaving voice channel.");
@@ -384,6 +406,7 @@ function initializePlayer(client) {
                 toggleLoop(player, channel);
                 break;
             case "skipTrack":
+                // Only allow skip if there is actually another song queued
                 if (!player.queue || player.queue.length === 0) {
                     await sendEmbed(channel, "⚠️ **No tracks in queue to skip to! Use `/play` to add more tracks.**");
                     return;
