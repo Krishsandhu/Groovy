@@ -13,17 +13,10 @@ module.exports = {
   errorLog: "",
   nodes: [
     {
-      name: "G3V-Lavalink-V4",
-      host: "lava.g3v.co.uk",
-      port: 9008,
-      password: "lavalinklol",
-      secure: false
-    },
-    {
-      name: "Ajie-V4-Fallback",
-      host: "lava-v4.ajieblogs.eu.org",
-      port: 80,
-      password: "https://dsc.gg/ajidevserver",
+      name: "CRESCENDO MAIN NODE",
+      host: "de4.bot-hosting.cloud",
+      port: 26245,
+      password: "glaceyt",
       secure: false
     }
   ]
