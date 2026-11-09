@@ -4,9 +4,12 @@ const musicIcons = require('../UI/icons/musicicons.js');
 const queueNames = [];
 const requesters = new Map();
 
+// Regex matching standard YouTube video and music links
+const YOUTUBE_REGEX = /^(https?:\/\/)?(www\.|m\.)?(youtube\.com|youtu\.be)\/.+/i;
+
 async function play(client, interaction, lang) {
     try {
-        // 1. Acknowledge Discord immediately
+        // 1. Immediately acknowledge interaction
         await interaction.deferReply();
 
         const query = interaction.options.getString('name');
@@ -40,11 +43,32 @@ async function play(client, interaction, lang) {
         }
 
         let rawQuery = query.trim();
+
+        // 2. Instant YouTube Link Interception
+        if (YOUTUBE_REGEX.test(rawQuery)) {
+            const ytNoticeEmbed = new EmbedBuilder()
+                .setColor('#ff0000')
+                .setAuthor({ 
+                    name: "YouTube Links Unavailable", 
+                    iconURL: musicIcons?.alertIcon,
+                    url: config.SupportServer
+                })
+                .setTitle("⚠️ Direct YouTube Links Are Not Supported")
+                .setDescription(
+                    "Due to platform bot restrictions, direct YouTube links cannot be played.\n\n" +
+                    "**How to play this song instead:**\n" +
+                    "• **Type the song name directly:** `/play name: song title - artist`\n" +
+                    "• **Paste a Spotify link:** `/play name: https://open.spotify.com/...`"
+                )
+                .setFooter({ text: "Groover Music | Smart Resolver", iconURL: musicIcons?.heartIcon });
+
+            return await interaction.editReply({ embeds: [ytNoticeEmbed] });
+        }
+
         const isUrl = /^https?:\/\//i.test(rawQuery);
         let resolve = null;
 
-        // 2. Direct URLs are passed as-is. Plain song names use scsearch: (SoundCloud search)
-        // scsearch: resolves instantly without YouTube IP bans or LavaSearch timeouts.
+        // 3. Keyword queries use SoundCloud search (scsearch:) for instant, unblocked lookups
         const targetQuery = isUrl ? rawQuery : `scsearch:${rawQuery}`;
 
         try {
@@ -57,13 +81,8 @@ async function play(client, interaction, lang) {
             console.error("Resolve Error:", resErr);
         }
 
-        // 3. Fallback: If a YouTube link was provided and failed due to IP blocks, inform the user cleanly
+        // 4. Failed resolution / empty track pool
         if (!resolve || resolve.loadType === "error" || resolve.loadType === "empty" || !resolve.tracks || resolve.tracks.length === 0) {
-            let errorMsg = "❌ Could not find or play this track.";
-            if (isUrl && /youtube\.com|youtu\.be/i.test(rawQuery)) {
-                errorMsg = "❌ YouTube has blocked this link on the node. Please **type the song name** or use a **Spotify link** instead!";
-            }
-
             const errorEmbed = new EmbedBuilder()
                 .setColor('#ff0000')
                 .setAuthor({ 
@@ -72,12 +91,12 @@ async function play(client, interaction, lang) {
                     url: config.SupportServer
                 })
                 .setFooter({ text: lang?.footer || "Groover Music", iconURL: musicIcons?.heartIcon })
-                .setDescription(errorMsg);
+                .setDescription("❌ Could not find or load this track. Try searching with artist & title or use a Spotify link!");
 
             return await interaction.editReply({ embeds: [errorEmbed] });
         }
 
-        // 4. Establish Voice Connection
+        // 5. Establish Voice Connection
         let player = client.riffy.players.get(interaction.guildId);
         if (!player) {
             player = client.riffy.createConnection({
@@ -90,7 +109,7 @@ async function play(client, interaction, lang) {
 
         const { loadType, tracks, playlistInfo } = resolve;
 
-        // 5. Handle Playlists
+        // 6. Handle Playlists
         if (loadType === 'playlist' || loadType === 'PLAYLIST_LOADED') {
             for (const track of tracks) {
                 track.info.requester = interaction.user.username;
@@ -113,7 +132,7 @@ async function play(client, interaction, lang) {
 
             return await interaction.editReply({ embeds: [playlistEmbed] });
 
-        // 6. Handle Single Tracks / Searches
+        // 7. Handle Single Tracks / Searches
         } else if (loadType === 'search' || loadType === 'track' || loadType === 'SEARCH_RESULT' || loadType === 'TRACK_LOADED') {
             const track = tracks.shift();
             track.info.requester = interaction.user.username;
