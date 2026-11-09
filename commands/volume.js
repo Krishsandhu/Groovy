@@ -4,54 +4,78 @@ const musicIcons = require('../UI/icons/musicicons.js');
 
 async function volume(client, interaction, lang) {
     try {
-        const player = client.riffy.players.get(interaction.guildId);
-        const volume = interaction.options.getInteger('level');
+        const player = client.riffy?.players?.get(interaction.guildId);
 
         if (!player) {
             const errorEmbed = new EmbedBuilder()
                 .setColor('#ff0000')
                 .setAuthor({ 
-                    name: lang.volume.embed.noActivePlayer, 
-                    iconURL: musicIcons.alertIcon,
+                    name: lang?.volume?.embed?.noActivePlayer || "No Active Player", 
+                    iconURL: musicIcons?.alertIcon,
                     url: config.SupportServer
                 })
-                .setFooter({ text: lang.footer, iconURL: musicIcons.heartIcon })
-                .setDescription(lang.volume.embed.noActivePlayerDescription);
+                .setFooter({ text: lang?.footer || "Groover Music", iconURL: musicIcons?.heartIcon })
+                .setDescription(lang?.volume?.embed?.noActivePlayerDescription || "There is no music playing right now!");
 
-            await interaction.reply({ embeds: [errorEmbed], ephemeral: true });
-            return;
+            return await interaction.reply({ embeds: [errorEmbed], ephemeral: true });
         }
 
-        if (volume < 0 || volume > 100) {
-            return interaction.reply({ content: lang.volume.volumeRangeError, ephemeral: true });
+        // Voice channel validation
+        const voiceChannel = interaction.member.voice.channel;
+        if (!voiceChannel || voiceChannel.id !== player.voiceChannel) {
+            return await interaction.reply({
+                embeds: [
+                    new EmbedBuilder()
+                        .setColor('#ff0000')
+                        .setDescription("⚠️ **You must be in the same voice channel as the bot to adjust volume!**")
+                ],
+                ephemeral: true
+            });
         }
 
-        player.setVolume(volume);
+        const volumeLevel = interaction.options.getInteger('level');
+
+        if (volumeLevel < 0 || volumeLevel > 100) {
+            return await interaction.reply({ 
+                content: lang?.volume?.volumeRangeError || "⚠️ Volume level must be between 0 and 100!", 
+                ephemeral: true 
+            });
+        }
+
+        player.setVolume(volumeLevel);
+
+        const description = lang?.volume?.embed?.volumeUpdatedDescription 
+            ? lang.volume.embed.volumeUpdatedDescription.replace("{volume}", volumeLevel)
+            : `🔊 **Volume has been set to ${volumeLevel}%!**`;
 
         const embed = new EmbedBuilder()
-            .setColor(config.embedColor)
+            .setColor(config.embedColor || "#FF7A00")
             .setAuthor({ 
-                name: lang.volume.embed.volumeUpdated, 
-                iconURL: musicIcons.volumeIcon,
+                name: lang?.volume?.embed?.volumeUpdated || "Volume Updated", 
+                iconURL: musicIcons?.volumeIcon,
                 url: config.SupportServer
             })
-            .setFooter({ text: lang.footer, iconURL: musicIcons.heartIcon })
-            .setDescription(lang.volume.embed.volumeUpdatedDescription.replace("{volume}", volume));
+            .setFooter({ text: lang?.footer || "Groover Music", iconURL: musicIcons?.heartIcon })
+            .setDescription(description);
 
-        return interaction.reply({ embeds: [embed] });
+        return await interaction.reply({ embeds: [embed] });
     } catch (error) {
         console.error('Error setting volume:', error);
         const errorEmbed = new EmbedBuilder()
             .setColor('#ff0000')
             .setAuthor({ 
-                name: lang.volume.embed.error, 
-                iconURL: musicIcons.alertIcon,
+                name: lang?.volume?.embed?.error || "Error", 
+                iconURL: musicIcons?.alertIcon,
                 url: config.SupportServer
             })
-            .setFooter({ text: lang.footer, iconURL: musicIcons.heartIcon })
-            .setDescription(lang.volume.embed.errorDescription);
+            .setFooter({ text: lang?.footer || "Groover Music", iconURL: musicIcons?.heartIcon })
+            .setDescription(lang?.volume?.embed?.errorDescription || "An error occurred while setting the volume.");
 
-        await interaction.reply({ embeds: [errorEmbed], ephemeral: true });
+        if (interaction.replied || interaction.deferred) {
+            await interaction.editReply({ embeds: [errorEmbed] });
+        } else {
+            await interaction.reply({ embeds: [errorEmbed], ephemeral: true });
+        }
     }
 }
 
@@ -63,6 +87,8 @@ module.exports = {
         name: 'level',
         description: 'Volume level (0-100)',
         type: ApplicationCommandOptionType.Integer,
+        minValue: 0,
+        maxValue: 100,
         required: true
     }],
     run: volume
