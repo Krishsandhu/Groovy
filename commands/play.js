@@ -38,18 +38,36 @@ async function play(client, interaction, lang) {
 
         await interaction.deferReply();
 
-        let resolve;
+        let rawQuery = query.trim();
+        let resolve = null;
+
+        // 1. Primary Resolve Attempt
         try {
             resolve = await client.riffy.resolve({ 
-                query: query.trim(), 
+                query: rawQuery, 
                 requester: interaction.user.username 
             });
-            console.log("Riffy Resolve LoadType:", resolve?.loadType, "Tracks found:", resolve?.tracks?.length || 0);
+            console.log("Riffy Primary Resolve Response:", JSON.stringify(resolve, null, 2));
         } catch (resErr) {
-            console.error("Resolve error:", resErr);
-            resolve = null;
+            console.error("Primary Resolve Error:", resErr);
         }
 
+        // 2. Fallback to SoundCloud if plain search returned an error or empty
+        const isUrl = /^https?:\/\//i.test(rawQuery);
+        if (!isUrl && (!resolve || resolve.loadType === "error" || resolve.loadType === "empty" || !resolve.tracks?.length)) {
+            console.log("Primary search failed or blocked. Attempting SoundCloud fallback...");
+            try {
+                resolve = await client.riffy.resolve({
+                    query: `scsearch:${rawQuery}`,
+                    requester: interaction.user.username
+                });
+                console.log("SoundCloud Fallback Response:", JSON.stringify(resolve, null, 2));
+            } catch (scErr) {
+                console.error("SoundCloud Fallback Error:", scErr);
+            }
+        }
+
+        // 3. Check if all resolution attempts failed
         if (!resolve || resolve.loadType === "error" || resolve.loadType === "empty" || !resolve.tracks || resolve.tracks.length === 0) {
             const errorEmbed = new EmbedBuilder()
                 .setColor('#ff0000')
