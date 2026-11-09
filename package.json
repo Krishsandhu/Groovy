@@ -10,14 +10,14 @@
     "mongodb": "^6.12.0",
     "musicard": "^2.0.5",
     "node-fetch": "^2.7.0",
-    "riffy": "^1.0.3",
+    "riffy": "^1.0.12",
     "songcard": "^1.2.13"
   },
   "scripts": {
     "start": "node index.js"
   },
   "author": "Krish",
-  "license": "XX",
+  "license": "ISC",
   "engines": {
     "node": "20.x"
   }
