@@ -7,9 +7,25 @@ const requesters = new Map();
 // Regex matching standard YouTube video and music links
 const YOUTUBE_REGEX = /^(https?:\/\/)?(www\.|m\.)?(youtube\.com|youtu\.be)\/.+/i;
 
+/**
+ * Fetches video title from YouTube's public oEmbed metadata API.
+ * Bypasses datacenter IP blocks because it never requests media streams.
+ */
+async function getYouTubeMetadata(url) {
+    try {
+        const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`;
+        const res = await fetch(oembedUrl);
+        if (!res.ok) return null;
+        const data = await res.json();
+        return data.title || null;
+    } catch (e) {
+        return null;
+    }
+}
+
 async function play(client, interaction, lang) {
     try {
-        // 1. Immediately acknowledge interaction
+        // 1. Instant Discord handshake
         await interaction.deferReply();
 
         const query = interaction.options.getString('name');
@@ -43,45 +59,42 @@ async function play(client, interaction, lang) {
         }
 
         let rawQuery = query.trim();
+        let targetQuery = rawQuery;
+        let redirectedFromYT = false;
+        let originalYTTitle = "";
 
-        // 2. Instant YouTube Link Interception
+        // 2. YouTube Link Interception & Rapid Reroute
         if (YOUTUBE_REGEX.test(rawQuery)) {
-            const ytNoticeEmbed = new EmbedBuilder()
-                .setColor('#ff0000')
-                .setAuthor({ 
-                    name: "YouTube Links Unavailable", 
-                    iconURL: musicIcons?.alertIcon,
-                    url: config.SupportServer
-                })
-                .setTitle("⚠️ Direct YouTube Links Are Not Supported")
-                .setDescription(
-                    "Due to platform bot restrictions, direct YouTube links cannot be played.\n\n" +
-                    "**How to play this song instead:**\n" +
-                    "• **Type the song name directly:** `/play name: song title - artist`\n" +
-                    "• **Paste a Spotify link:** `/play name: https://open.spotify.com/...`"
-                )
-                .setFooter({ text: "Groover Music | Smart Resolver", iconURL: musicIcons?.heartIcon });
-
-            return await interaction.editReply({ embeds: [ytNoticeEmbed] });
+            const ytTitle = await getYouTubeMetadata(rawQuery);
+            if (ytTitle) {
+                redirectedFromYT = true;
+                originalYTTitle = ytTitle;
+                targetQuery = `scsearch:${ytTitle}`;
+            } else {
+                const ytNoticeEmbed = new EmbedBuilder()
+                    .setColor('#ff0000')
+                    .setAuthor({ name: "YouTube Error", iconURL: musicIcons?.alertIcon, url: config.SupportServer })
+                    .setDescription("❌ Could not read metadata from this YouTube link. Try typing the song title directly!");
+                return await interaction.editReply({ embeds: [ytNoticeEmbed] });
+            }
+        } else {
+            // Direct Link (Spotify, Bandcamp, SoundCloud) vs Keyword Search
+            const isUrl = /^https?:\/\//i.test(rawQuery);
+            targetQuery = isUrl ? rawQuery : `scsearch:${rawQuery}`;
         }
 
-        const isUrl = /^https?:\/\//i.test(rawQuery);
+        // 3. Fast Resolve via Riffy / Lavalink
         let resolve = null;
-
-        // 3. Keyword queries use SoundCloud search (scsearch:) for instant, unblocked lookups
-        const targetQuery = isUrl ? rawQuery : `scsearch:${rawQuery}`;
-
         try {
             resolve = await client.riffy.resolve({ 
                 query: targetQuery, 
                 requester: interaction.user.username 
             });
-            console.log("Riffy Resolve Response:", JSON.stringify(resolve, null, 2));
         } catch (resErr) {
             console.error("Resolve Error:", resErr);
         }
 
-        // 4. Failed resolution / empty track pool
+        // 4. Failed resolution
         if (!resolve || resolve.loadType === "error" || resolve.loadType === "empty" || !resolve.tracks || resolve.tracks.length === 0) {
             const errorEmbed = new EmbedBuilder()
                 .setColor('#ff0000')
@@ -91,25 +104,30 @@ async function play(client, interaction, lang) {
                     url: config.SupportServer
                 })
                 .setFooter({ text: lang?.footer || "Groover Music", iconURL: musicIcons?.heartIcon })
-                .setDescription("❌ Could not find or load this track. Try searching with artist & title or use a Spotify link!");
+                .setDescription("❌ Could not find or load this track. Try searching with artist & title or provide a Spotify link!");
 
             return await interaction.editReply({ embeds: [errorEmbed] });
         }
 
-        // 5. Establish Voice Connection
+        // 5. Establish Voice Connection with deafen enabled to prevent echo/loopback
         let player = client.riffy.players.get(interaction.guildId);
         if (!player) {
             player = client.riffy.createConnection({
                 guildId: interaction.guildId,
                 voiceChannel: interaction.member.voice.channelId,
                 textChannel: interaction.channelId,
-                deaf: true
+                deaf: true // Prevents bot from listening/recording audio in channel (eliminates feedback loop/echo)
             });
+        }
+
+        // 6. Enable Autoplay automatically so music never stops
+        if (typeof player.autoplay === 'function') {
+            player.autoplay(player);
         }
 
         const { loadType, tracks, playlistInfo } = resolve;
 
-        // 6. Handle Playlists
+        // 7. Handle Playlists
         if (loadType === 'playlist' || loadType === 'PLAYLIST_LOADED') {
             for (const track of tracks) {
                 track.info.requester = interaction.user.username;
@@ -132,7 +150,7 @@ async function play(client, interaction, lang) {
 
             return await interaction.editReply({ embeds: [playlistEmbed] });
 
-        // 7. Handle Single Tracks / Searches
+        // 8. Handle Single Tracks / Searches
         } else if (loadType === 'search' || loadType === 'track' || loadType === 'SEARCH_RESULT' || loadType === 'TRACK_LOADED') {
             const track = tracks.shift();
             track.info.requester = interaction.user.username;
@@ -143,6 +161,11 @@ async function play(client, interaction, lang) {
 
             if (!player.playing && !player.paused) player.play();
 
+            let descriptionText = `🎵 Added **[${track.info.title}](${track.info.uri})** by \`${track.info.author}\` to queue!`;
+            if (redirectedFromYT) {
+                descriptionText += `\n*(Matched from YouTube: **${originalYTTitle}**)*`;
+            }
+
             const trackEmbed = new EmbedBuilder()
                 .setColor(config.embedColor || "#1db954")
                 .setAuthor({
@@ -150,7 +173,7 @@ async function play(client, interaction, lang) {
                     iconURL: musicIcons?.beats2Icon,
                     url: config.SupportServer
                 })
-                .setDescription(`🎵 Added **[${track.info.title}](${track.info.uri})** by \`${track.info.author}\` to queue!`)
+                .setDescription(descriptionText)
                 .setFooter({ text: lang?.footer || "Groover Music", iconURL: musicIcons?.heartIcon });
 
             return await interaction.editReply({ embeds: [trackEmbed] });
