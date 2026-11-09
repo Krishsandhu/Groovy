@@ -18,6 +18,13 @@ module.exports = {
       port: 443,
       password: "https://seretia.link/discord",
       secure: true
+    },
+    {
+      name: "Trinium-SSL",
+      host: "lavalink-v4.triniumhost.com",
+      port: 443,
+      password: "free",
+      secure: true
     }
   ]
 };
