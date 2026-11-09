@@ -17,7 +17,7 @@ module.exports = async (client) => {
             console.log('─'.repeat(40));
             console.log(`${colors.cyan}[ COMMANDS ]${colors.reset} ${colors.green}Loaded Successfully 🚀${colors.reset}`);
             console.log(`${colors.cyan}[ TIME ]${colors.reset} ${colors.gray}${new Date().toISOString().replace('T', ' ').split('.')[0]}${colors.reset}`);
-            console.log(`${colors.cyan}[ USER ]${colors.reset} ${colors.yellow}GlaceYT${colors.reset}`);
+            console.log(`${colors.cyan}[ USER ]${colors.reset} ${colors.yellow}Krish${colors.reset}`);
         } catch (err) {
             console.log('\n' + '─'.repeat(40));
             console.log(`${colors.magenta}${colors.bright}⚡ COMMAND STATUS${colors.reset}`);
@@ -25,7 +25,7 @@ module.exports = async (client) => {
             console.log(`${colors.cyan}[ COMMANDS ]${colors.reset} ${colors.red}Failed To Load ❌${colors.reset}`);
             console.log(`${colors.cyan}[ ERROR ]${colors.reset} ${colors.red}${err.message}${colors.reset}`);
             console.log(`${colors.cyan}[ TIME ]${colors.reset} ${colors.gray}${new Date().toISOString().replace('T', ' ').split('.')[0]}${colors.reset}`);
-            console.log(`${colors.cyan}[ USER ]${colors.reset} ${colors.yellow}GlaceYT${colors.reset}`);
+            console.log(`${colors.cyan}[ USER ]${colors.reset} ${colors.yellow}Krish${colors.reset}`);
         }
     })();
 
