@@ -6,7 +6,10 @@ const Dynamic = musicardModule?.Dynamic || musicardModule?.dynamic || musicardMo
 const config = require("./config.js");
 const fs = require("fs");
 const path = require("path");
-const autoplayCollection = require("./mongodb.js");
+
+// Safe extraction of autoplayCollection from MongoDB module
+const mongoModule = require("./mongodb.js");
+const autoplayCollection = mongoModule.autoplayCollection || mongoModule;
 
 // Safe icon loader
 let musicIcons = {
@@ -89,7 +92,6 @@ async function sendMessageWithPermissionsCheck(channel, embed, attachment, actio
 }
 
 function initializePlayer(client) {
-    // Riffy v1.0.12 native v4 initialization
     client.riffy = new Riffy(client, config.nodes, {
         send: (payload) => {
             const guild = client.guilds.cache.get(payload.d?.guild_id);
@@ -97,7 +99,7 @@ function initializePlayer(client) {
                 guild.shard.send(payload);
             }
         },
-        defaultSearchPlatform: "scsearch",
+        defaultSearchPlatform: "spsearch",
         restVersion: "v4"
     });
 
@@ -123,6 +125,14 @@ function initializePlayer(client) {
     client.riffy.on("trackStart", async (player, track) => {
         const channel = client.channels.cache.get(player.textChannel);
         if (!channel) return;
+
+        // Save current song track info for Spotify recommendation seeds
+        if (track?.info?.identifier) {
+            player.set('lastTrackId', track.info.identifier);
+        }
+        if (track?.info?.title) {
+            player.set('lastTrackTitle', track.info.title);
+        }
 
         const trackUri = track.info.uri;
         const requester = requesters.get(trackUri) || "Unknown User";
@@ -214,27 +224,63 @@ function initializePlayer(client) {
         const guildId = player.guildId;
 
         try {
-            let autoplaySetting = null;
-            if (autoplayCollection && typeof autoplayCollection.findOne === "function") {
-                autoplaySetting = await autoplayCollection.findOne({ guildId });
+            let isAutoplayEnabled = player.isAutoplay;
+
+            // Check MongoDB if the player flag hasn't been set yet
+            if (isAutoplayEnabled === undefined && autoplayCollection?.findOne) {
+                const doc = await autoplayCollection.findOne({ guildId }).catch(() => null);
+                isAutoplayEnabled = doc ? doc.autoplay : false;
             }
 
-            if (autoplaySetting?.autoplay) {
-                if (!player.connected) {
-                    return player.destroy();
-                }
+            if (isAutoplayEnabled && player.connected) {
+                // Spotify Recommendations Bridge
+                const authString = Buffer.from(`${config.spotifyClientId}:${config.spotifyClientSecret}`).toString('base64');
+                const tokenRes = await fetch("https://accounts.spotify.com/api/token", {
+                    method: "POST",
+                    headers: {
+                        "Authorization": `Basic ${authString}`,
+                        "Content-Type": "application/x-www-form-urlencoded"
+                    },
+                    body: "grant_type=client_credentials"
+                });
 
-                try {
-                    await player.autoplay(player);
-                } catch (autoErr) {
-                    console.error("Autoplay failed:", autoErr.message);
-                    player.destroy();
+                if (tokenRes.ok) {
+                    const tokenData = await tokenRes.json();
+                    const lastTrackId = player.get('lastTrackId');
+                    const seedParam = (lastTrackId && /^[a-zA-Z0-9]{22}$/.test(lastTrackId))
+                        ? `seed_tracks=${lastTrackId}`
+                        : `seed_genres=pop,dance`;
+
+                    const recRes = await fetch(`https://api.spotify.com/v1/recommendations?limit=5&${seedParam}`, {
+                        headers: { "Authorization": `Bearer ${tokenData.access_token}` }
+                    });
+
+                    if (recRes.ok) {
+                        const recData = await recRes.json();
+                        const nextTrack = recData?.tracks?.[0];
+
+                        if (nextTrack?.external_urls?.spotify) {
+                            const resolve = await client.riffy.resolve({
+                                query: nextTrack.external_urls.spotify,
+                                requester: "Autoplay"
+                            });
+
+                            if (resolve?.tracks?.length > 0) {
+                                const track = resolve.tracks[0];
+                                track.info.requester = "Autoplay";
+                                requesters.set(track.info.uri, "Autoplay");
+                                player.queue.add(track);
+                                return player.play();
+                            }
+                        }
+                    }
                 }
-            } else {
-                player.destroy();
-                if (channel) {
-                    sendEmbed(channel, "Queue has ended. Leaving voice channel.");
-                }
+            }
+
+            // If autoplay is disabled or resolution failed
+            player.destroy();
+            if (channel) {
+                sendEmbed(channel, "Queue has ended. Leaving voice channel.");
             }
         } catch (error) {
             console.error("Error handling queueEnd:", error);
