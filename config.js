@@ -13,10 +13,24 @@ module.exports = {
   errorLog: "",
   nodes: [
     {
-      name: "CRESCENDO MAIN NODE",
-      host: "de4.bot-hosting.cloud",
-      port: 26245,
-      password: "glaceyt",
+      name: "Serenetia-SSL",
+      host: "lavalinkv4.serenetia.com",
+      port: 443,
+      password: "https://seretia.link/discord",
+      secure: true
+    },
+    {
+      name: "Nazha-Global",
+      host: "lavalink.nazha.online",
+      port: 443,
+      password: "nazhafreelava",
+      secure: true
+    },
+    {
+      name: "Jirayu-Backup",
+      host: "lavalink.jirayu.net",
+      port: 13592,
+      password: "youshallnotpass",
       secure: false
     }
   ]
