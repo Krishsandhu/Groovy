@@ -103,25 +103,32 @@ async function getSpotifyApiToken() {
     const clientId = (config.spotifyClientId || "").trim();
     const clientSecret = (config.spotifyClientSecret || "").trim();
 
-    const authHeader = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
-    const res = await fetch("https://accounts.spotify.com/api/token", {
-        method: "POST",
-        headers: {
-            "Authorization": `Basic ${authHeader}`,
-            "Content-Type": "application/x-www-form-urlencoded"
-        },
-        body: new URLSearchParams({ grant_type: "client_credentials" })
-    });
+    if (!clientId || !clientSecret) return null;
 
-    if (!res.ok) {
-        console.error("Spotify Token Error:", res.status);
+    try {
+        const authHeader = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
+        const res = await fetch("https://accounts.spotify.com/api/token", {
+            method: "POST",
+            headers: {
+                "Authorization": `Basic ${authHeader}`,
+                "Content-Type": "application/x-www-form-urlencoded"
+            },
+            body: new URLSearchParams({ grant_type: "client_credentials" })
+        });
+
+        if (!res.ok) {
+            console.error("Spotify Token Error:", res.status);
+            return null;
+        }
+
+        const data = await res.json();
+        spotifyToken = data.access_token;
+        spotifyTokenExpiry = Date.now() + (data.expires_in - 60) * 1000;
+        return spotifyToken;
+    } catch (e) {
+        console.error("Spotify Token Fetch Failed:", e.message);
         return null;
     }
-
-    const data = await res.json();
-    spotifyToken = data.access_token;
-    spotifyTokenExpiry = Date.now() + (data.expires_in - 60) * 1000;
-    return spotifyToken;
 }
 
 function initializePlayer(client) {
@@ -159,9 +166,16 @@ function initializePlayer(client) {
         const channel = client.channels.cache.get(player.textChannel);
         if (!channel) return;
 
-        // Store track author and title for autoplay discovery
+        // Track session history to avoid duplicate playback
+        if (!player.playedTracks) player.playedTracks = new Set();
+        if (track?.info?.title) {
+            player.playedTracks.add(track.info.title.toLowerCase().trim());
+        }
+
+        // Store metadata for autoplay genre and similarity lookup
         if (track?.info?.author) player.set('lastAuthor', track.info.author);
         if (track?.info?.title) player.set('lastTitle', track.info.title);
+        if (track?.info?.uri) player.set('lastUri', track.info.uri);
 
         const trackUri = track.info.uri;
         const requester = requesters.get(trackUri) || "Unknown User";
@@ -248,7 +262,7 @@ function initializePlayer(client) {
         currentTrackMessageId = null;
     });
 
-    // Triggers strictly when a song ends naturally and the queue is empty
+    // Real genre/style-based Autoplay on queue end
     client.riffy.on("queueEnd", async (player) => {
         const channel = client.channels.cache.get(player.textChannel);
         const guildId = player.guildId;
@@ -256,7 +270,6 @@ function initializePlayer(client) {
         try {
             let isAutoplayEnabled = player.isAutoplay;
 
-            // Check MongoDB if the in-memory flag is not explicitly true
             if (!isAutoplayEnabled && autoplayCollection?.findOne) {
                 try {
                     const doc = await autoplayCollection.findOne({ guildId });
@@ -269,37 +282,72 @@ function initializePlayer(client) {
             console.log(`[ AUTOPLAY ] Guild: ${guildId} | Enabled: ${isAutoplayEnabled}`);
 
             if (isAutoplayEnabled && player.connected) {
-                const token = await getSpotifyApiToken();
-                const rawAuthor = player.get('lastAuthor') || "Punjabi";
-                const lastTitle = player.get('lastTitle') || "";
+                if (!player.playedTracks) player.playedTracks = new Set();
 
-                // Extract primary artist (e.g., "Navaan Sandhu, Haakam" -> "Navaan Sandhu")
+                const lastTitle = (player.get('lastTitle') || "").toLowerCase().trim();
+                const rawAuthor = player.get('lastAuthor') || "";
+                const lastUri = player.get('lastUri') || "";
                 const primaryArtist = rawAuthor.split(/[,&/]/)[0].trim();
 
+                const token = await getSpotifyApiToken();
                 let nextSongQuery = null;
 
+                // 1. Try Spotify Recommendation Engine (Same genre / vibe across artists)
                 if (token) {
-                    const searchQuery = encodeURIComponent(`artist:"${primaryArtist}"`);
-                    const searchRes = await fetch(`https://api.spotify.com/v1/search?q=${searchQuery}&type=track&limit=10`, {
-                        headers: { "Authorization": `Bearer ${token}` }
-                    }).catch(() => null);
+                    let spotifyTrackId = null;
+                    const spotifyMatch = lastUri.match(/track\/([a-zA-Z0-9]+)/);
+                    if (spotifyMatch) {
+                        spotifyTrackId = spotifyMatch[1];
+                    } else if (lastTitle) {
+                        // Search track to obtain its ID
+                        const searchRes = await fetch(`https://api.spotify.com/v1/search?q=${encodeURIComponent(lastTitle + " " + primaryArtist)}&type=track&limit=1`, {
+                            headers: { "Authorization": `Bearer ${token}` }
+                        }).catch(() => null);
 
-                    if (searchRes && searchRes.ok) {
-                        const searchData = await searchRes.json();
-                        const tracks = searchData?.tracks?.items || [];
-                        const candidate = tracks.find(t => t.name.toLowerCase() !== lastTitle.toLowerCase()) || tracks[0];
-                        if (candidate?.external_urls?.spotify) {
-                            nextSongQuery = candidate.external_urls.spotify;
+                        if (searchRes && searchRes.ok) {
+                            const searchData = await searchRes.json();
+                            spotifyTrackId = searchData?.tracks?.items?.[0]?.id;
+                        }
+                    }
+
+                    if (spotifyTrackId) {
+                        const recRes = await fetch(`https://api.spotify.com/v1/recommendations?seed_tracks=${spotifyTrackId}&limit=15`, {
+                            headers: { "Authorization": `Bearer ${token}` }
+                        }).catch(() => null);
+
+                        if (recRes && recRes.ok) {
+                            const recData = await recRes.json();
+                            const recTracks = recData?.tracks || [];
+
+                            // Filter out already played songs
+                            const eligible = recTracks.filter(t => {
+                                const name = t.name.toLowerCase().trim();
+                                for (const played of player.playedTracks) {
+                                    if (name.includes(played) || played.includes(name)) return false;
+                                }
+                                return true;
+                            });
+
+                            if (eligible.length > 0) {
+                                const picked = eligible[Math.floor(Math.random() * Math.min(eligible.length, 6))];
+                                nextSongQuery = picked.external_urls?.spotify;
+                                player.playedTracks.add(picked.name.toLowerCase().trim());
+                            }
                         }
                     }
                 }
 
-                // Fallback to internal spsearch if external fetch was empty
+                // 2. Fallback: Style/Radio Search across artists in the same ecosystem
                 if (!nextSongQuery) {
-                    nextSongQuery = `spsearch:${primaryArtist} top tracks`;
+                    const fallbackQueries = [
+                        `spsearch:${primaryArtist} mix`,
+                        `spsearch:${primaryArtist} radio`,
+                        `spsearch:${lastTitle} similar`
+                    ];
+                    nextSongQuery = fallbackQueries[Math.floor(Math.random() * fallbackQueries.length)];
                 }
 
-                console.log(`[ AUTOPLAY ] Searching next song for query: ${nextSongQuery}`);
+                console.log(`[ AUTOPLAY ] Finding recommendations via: ${nextSongQuery}`);
 
                 const resolve = await client.riffy.resolve({
                     query: nextSongQuery,
@@ -307,18 +355,27 @@ function initializePlayer(client) {
                 });
 
                 if (resolve?.tracks?.length > 0) {
-                    const nextTrack = resolve.tracks[0];
+                    // Pick a track that hasn't played yet in this session
+                    const nextTrack = resolve.tracks.find(t => {
+                        const title = t.info.title.toLowerCase().trim();
+                        for (const played of player.playedTracks) {
+                            if (title.includes(played) || played.includes(title)) return false;
+                        }
+                        return true;
+                    }) || resolve.tracks[0];
+
                     nextTrack.info.requester = "Autoplay";
                     requesters.set(nextTrack.info.uri, "Autoplay");
+                    player.playedTracks.add(nextTrack.info.title.toLowerCase().trim());
+
                     player.queue.add(nextTrack);
-                    console.log(`[ AUTOPLAY ] Successfully queued: ${nextTrack.info.title}`);
+                    console.log(`[ AUTOPLAY ] Auto-playing related track: ${nextTrack.info.title} by ${nextTrack.info.author}`);
                     return player.play();
                 } else {
-                    console.log("[ AUTOPLAY ] Resolve found no playable tracks on Lavalink.");
+                    console.log("[ AUTOPLAY ] Could not resolve any autoplay tracks.");
                 }
             }
 
-            // Cleanup when autoplay is disabled or resolution finds nothing
             player.destroy();
             if (channel) {
                 sendEmbed(channel, "Queue has ended. Leaving voice channel.");
@@ -406,7 +463,6 @@ function initializePlayer(client) {
                 toggleLoop(player, channel);
                 break;
             case "skipTrack":
-                // Only allow skip if there is actually another song queued
                 if (!player.queue || player.queue.length === 0) {
                     await sendEmbed(channel, "⚠️ **No tracks in queue to skip to! Use `/play` to add more tracks.**");
                     return;
