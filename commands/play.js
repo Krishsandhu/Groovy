@@ -6,7 +6,7 @@ const requesters = new Map();
 
 async function play(client, interaction, lang) {
     try {
-        // 1. Acknowledge Discord immediately to prevent interaction timeout (3-second limit)
+        // 1. Acknowledge Discord immediately
         await interaction.deferReply();
 
         const query = interaction.options.getString('name');
@@ -43,35 +43,27 @@ async function play(client, interaction, lang) {
         const isUrl = /^https?:\/\//i.test(rawQuery);
         let resolve = null;
 
-        // 2. Primary Search: If not a URL, route through Spotify search (spsearch:)
-        const primaryQuery = isUrl ? rawQuery : `spsearch:${rawQuery}`;
+        // 2. Direct URLs are passed as-is. Plain song names use scsearch: (SoundCloud search)
+        // scsearch: resolves instantly without YouTube IP bans or LavaSearch timeouts.
+        const targetQuery = isUrl ? rawQuery : `scsearch:${rawQuery}`;
 
         try {
             resolve = await client.riffy.resolve({ 
-                query: primaryQuery, 
+                query: targetQuery, 
                 requester: interaction.user.username 
             });
-            console.log("Riffy Primary Resolve Response:", JSON.stringify(resolve, null, 2));
+            console.log("Riffy Resolve Response:", JSON.stringify(resolve, null, 2));
         } catch (resErr) {
-            console.error("Primary Resolve Error:", resErr);
+            console.error("Resolve Error:", resErr);
         }
 
-        // 3. Secondary Fallback: If Spotify/Direct URL failed or returned empty, try SoundCloud (scsearch:)
-        if (!isUrl && (!resolve || resolve.loadType === "error" || resolve.loadType === "empty" || !resolve.tracks?.length)) {
-            console.log("Spotify search failed or empty. Attempting SoundCloud fallback...");
-            try {
-                resolve = await client.riffy.resolve({
-                    query: `scsearch:${rawQuery}`,
-                    requester: interaction.user.username
-                });
-                console.log("SoundCloud Fallback Response:", JSON.stringify(resolve, null, 2));
-            } catch (scErr) {
-                console.error("SoundCloud Fallback Error:", scErr);
-            }
-        }
-
-        // 4. If all sources failed or no tracks were found
+        // 3. Fallback: If a YouTube link was provided and failed due to IP blocks, inform the user cleanly
         if (!resolve || resolve.loadType === "error" || resolve.loadType === "empty" || !resolve.tracks || resolve.tracks.length === 0) {
+            let errorMsg = "❌ Could not find or play this track.";
+            if (isUrl && /youtube\.com|youtu\.be/i.test(rawQuery)) {
+                errorMsg = "❌ YouTube has blocked this link on the node. Please **type the song name** or use a **Spotify link** instead!";
+            }
+
             const errorEmbed = new EmbedBuilder()
                 .setColor('#ff0000')
                 .setAuthor({ 
@@ -80,12 +72,12 @@ async function play(client, interaction, lang) {
                     url: config.SupportServer
                 })
                 .setFooter({ text: lang?.footer || "Groover Music", iconURL: musicIcons?.heartIcon })
-                .setDescription("❌ Could not load this track or search query. Try typing the artist and track title or provide a direct link!");
+                .setDescription(errorMsg);
 
             return await interaction.editReply({ embeds: [errorEmbed] });
         }
 
-        // 5. Connect to voice channel once tracks are confirmed
+        // 4. Establish Voice Connection
         let player = client.riffy.players.get(interaction.guildId);
         if (!player) {
             player = client.riffy.createConnection({
@@ -98,7 +90,7 @@ async function play(client, interaction, lang) {
 
         const { loadType, tracks, playlistInfo } = resolve;
 
-        // Handle Playlists
+        // 5. Handle Playlists
         if (loadType === 'playlist' || loadType === 'PLAYLIST_LOADED') {
             for (const track of tracks) {
                 track.info.requester = interaction.user.username;
@@ -121,7 +113,7 @@ async function play(client, interaction, lang) {
 
             return await interaction.editReply({ embeds: [playlistEmbed] });
 
-        // Handle Single Tracks or Search Results
+        // 6. Handle Single Tracks / Searches
         } else if (loadType === 'search' || loadType === 'track' || loadType === 'SEARCH_RESULT' || loadType === 'TRACK_LOADED') {
             const track = tracks.shift();
             track.info.requester = interaction.user.username;
