@@ -89,29 +89,16 @@ async function sendMessageWithPermissionsCheck(channel, embed, attachment, actio
 }
 
 function initializePlayer(client) {
-    // Explicitly configure v4 for WebSocket and REST routing
-    const nodes = config.nodes.map((node) => ({
-        name: node.name,
-        host: node.host,
-        port: node.port,
-        password: node.password,
-        secure: node.secure,
-        version: "v4",
-        restVersion: "v4",
-        path: "/v4/websocket",
-        reconnectTimeout: 5000,
-        reconnectTries: Infinity,
-    }));
-
-    client.riffy = new Riffy(client, nodes, {
+    // Riffy v1.0.12 native v4 initialization
+    client.riffy = new Riffy(client, config.nodes, {
         send: (payload) => {
             const guild = client.guilds.cache.get(payload.d?.guild_id);
             if (guild && guild.shard) {
                 guild.shard.send(payload);
             }
         },
-        defaultSearchPlatform: "scsearch", // SoundCloud search bypasses Render YouTube 429 blocks
-        restVersion: "v4",
+        defaultSearchPlatform: "scsearch",
+        restVersion: "v4"
     });
 
     let currentTrackMessageId = null;
