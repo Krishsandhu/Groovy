@@ -91,6 +91,39 @@ async function sendMessageWithPermissionsCheck(channel, embed, attachment, actio
     }
 }
 
+// Token cache for Spotify API
+let spotifyToken = null;
+let spotifyTokenExpiry = 0;
+
+async function getSpotifyApiToken() {
+    if (spotifyToken && Date.now() < spotifyTokenExpiry) {
+        return spotifyToken;
+    }
+
+    const clientId = (config.spotifyClientId || "").trim();
+    const clientSecret = (config.spotifyClientSecret || "").trim();
+
+    const authHeader = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
+    const res = await fetch("https://accounts.spotify.com/api/token", {
+        method: "POST",
+        headers: {
+            "Authorization": `Basic ${authHeader}`,
+            "Content-Type": "application/x-www-form-urlencoded"
+        },
+        body: new URLSearchParams({ grant_type: "client_credentials" })
+    });
+
+    if (!res.ok) {
+        console.error("Spotify Token Error:", res.status);
+        return null;
+    }
+
+    const data = await res.json();
+    spotifyToken = data.access_token;
+    spotifyTokenExpiry = Date.now() + (data.expires_in - 60) * 1000;
+    return spotifyToken;
+}
+
 function initializePlayer(client) {
     client.riffy = new Riffy(client, config.nodes, {
         send: (payload) => {
@@ -126,13 +159,9 @@ function initializePlayer(client) {
         const channel = client.channels.cache.get(player.textChannel);
         if (!channel) return;
 
-        // Save current song track info for Spotify recommendation seeds
-        if (track?.info?.identifier) {
-            player.set('lastTrackId', track.info.identifier);
-        }
-        if (track?.info?.title) {
-            player.set('lastTrackTitle', track.info.title);
-        }
+        // Store track author and title for autoplay discovery
+        if (track?.info?.author) player.set('lastAuthor', track.info.author);
+        if (track?.info?.title) player.set('lastTitle', track.info.title);
 
         const trackUri = track.info.uri;
         const requester = requesters.get(trackUri) || "Unknown User";
@@ -219,6 +248,7 @@ function initializePlayer(client) {
         currentTrackMessageId = null;
     });
 
+    // Triggers strictly when a song ends naturally and the queue is empty
     client.riffy.on("queueEnd", async (player) => {
         const channel = client.channels.cache.get(player.textChannel);
         const guildId = player.guildId;
@@ -226,58 +256,51 @@ function initializePlayer(client) {
         try {
             let isAutoplayEnabled = player.isAutoplay;
 
-            // Check MongoDB if the player flag hasn't been set yet
             if (isAutoplayEnabled === undefined && autoplayCollection?.findOne) {
                 const doc = await autoplayCollection.findOne({ guildId }).catch(() => null);
                 isAutoplayEnabled = doc ? doc.autoplay : false;
             }
 
             if (isAutoplayEnabled && player.connected) {
-                // Spotify Recommendations Bridge
-                const authString = Buffer.from(`${config.spotifyClientId}:${config.spotifyClientSecret}`).toString('base64');
-                const tokenRes = await fetch("https://accounts.spotify.com/api/token", {
-                    method: "POST",
-                    headers: {
-                        "Authorization": `Basic ${authString}`,
-                        "Content-Type": "application/x-www-form-urlencoded"
-                    },
-                    body: "grant_type=client_credentials"
-                });
+                const token = await getSpotifyApiToken();
+                if (token) {
+                    const lastAuthor = player.get('lastAuthor') || "Pop";
+                    const lastTitle = player.get('lastTitle') || "";
 
-                if (tokenRes.ok) {
-                    const tokenData = await tokenRes.json();
-                    const lastTrackId = player.get('lastTrackId');
-                    const seedParam = (lastTrackId && /^[a-zA-Z0-9]{22}$/.test(lastTrackId))
-                        ? `seed_tracks=${lastTrackId}`
-                        : `seed_genres=pop,dance`;
-
-                    const recRes = await fetch(`https://api.spotify.com/v1/recommendations?limit=5&${seedParam}`, {
-                        headers: { "Authorization": `Bearer ${tokenData.access_token}` }
+                    // Query Spotify search for other tracks by this artist or related music
+                    const searchQuery = encodeURIComponent(`artist:"${lastAuthor}"`);
+                    const searchRes = await fetch(`https://api.spotify.com/v1/search?q=${searchQuery}&type=track&limit=10`, {
+                        headers: { "Authorization": `Bearer ${token}` }
                     });
 
-                    if (recRes.ok) {
-                        const recData = await recRes.json();
-                        const nextTrack = recData?.tracks?.[0];
+                    if (searchRes.ok) {
+                        const searchData = await searchRes.json();
+                        const tracks = searchData?.tracks?.items || [];
+                        
+                        // Select a different song by the same artist/genre
+                        const candidate = tracks.find(t => t.name.toLowerCase() !== lastTitle.toLowerCase()) || tracks[0];
 
-                        if (nextTrack?.external_urls?.spotify) {
+                        if (candidate?.external_urls?.spotify) {
                             const resolve = await client.riffy.resolve({
-                                query: nextTrack.external_urls.spotify,
+                                query: candidate.external_urls.spotify,
                                 requester: "Autoplay"
                             });
 
                             if (resolve?.tracks?.length > 0) {
-                                const track = resolve.tracks[0];
-                                track.info.requester = "Autoplay";
-                                requesters.set(track.info.uri, "Autoplay");
-                                player.queue.add(track);
+                                const nextTrack = resolve.tracks[0];
+                                nextTrack.info.requester = "Autoplay";
+                                requesters.set(nextTrack.info.uri, "Autoplay");
+                                player.queue.add(nextTrack);
                                 return player.play();
                             }
                         }
+                    } else {
+                        console.error("Spotify Autoplay Search Error:", searchRes.status);
                     }
                 }
             }
 
-            // If autoplay is disabled or resolution failed
+            // Cleanup when autoplay is disabled or resolution finds nothing
             player.destroy();
             if (channel) {
                 sendEmbed(channel, "Queue has ended. Leaving voice channel.");
@@ -365,8 +388,13 @@ function initializePlayer(client) {
                 toggleLoop(player, channel);
                 break;
             case "skipTrack":
+                // Only allow skip if there is actually another song queued
+                if (!player.queue || player.queue.length === 0) {
+                    await sendEmbed(channel, "⚠️ **No tracks in queue to skip to! Use `/play` to add more tracks.**");
+                    return;
+                }
                 player.stop();
-                await sendEmbed(channel, "⏭️ **Player will play the next song!**");
+                await sendEmbed(channel, "⏭️ **Skipped to next track!**");
                 break;
             case "disableLoop":
                 disableLoop(player, channel);
