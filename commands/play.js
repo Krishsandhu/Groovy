@@ -6,6 +6,9 @@ const requesters = new Map();
 
 async function play(client, interaction, lang) {
     try {
+        // 1. Acknowledge Discord immediately to prevent interaction timeout (3-second limit)
+        await interaction.deferReply();
+
         const query = interaction.options.getString('name');
 
         if (!interaction.member.voice?.channelId) {
@@ -19,7 +22,7 @@ async function play(client, interaction, lang) {
                 .setFooter({ text: lang?.footer || "Groover Music", iconURL: musicIcons?.heartIcon })
                 .setDescription(lang?.play?.embed?.noVoiceChannel || "You must be in a voice channel to use this command!");
 
-            return await interaction.reply({ embeds: [embed], ephemeral: true });
+            return await interaction.editReply({ embeds: [embed] });
         }
 
         if (!client.riffy?.nodes || client.riffy.nodes.size === 0) {
@@ -33,15 +36,13 @@ async function play(client, interaction, lang) {
                 .setFooter({ text: lang?.footer || "Groover Music", iconURL: musicIcons?.heartIcon })
                 .setDescription(lang?.play?.embed?.noLavalinkNodes || "No Lavalink nodes are currently available. Please try again shortly.");
 
-            return await interaction.reply({ embeds: [embed], ephemeral: true });
+            return await interaction.editReply({ embeds: [embed] });
         }
-
-        await interaction.deferReply();
 
         let rawQuery = query.trim();
         let resolve = null;
 
-        // 1. Primary Resolve Attempt
+        // 2. Primary Resolve Attempt
         try {
             resolve = await client.riffy.resolve({ 
                 query: rawQuery, 
@@ -52,7 +53,7 @@ async function play(client, interaction, lang) {
             console.error("Primary Resolve Error:", resErr);
         }
 
-        // 2. Fallback to SoundCloud if plain search returned an error or empty
+        // 3. Fallback to SoundCloud if plain search returned an error or empty
         const isUrl = /^https?:\/\//i.test(rawQuery);
         if (!isUrl && (!resolve || resolve.loadType === "error" || resolve.loadType === "empty" || !resolve.tracks?.length)) {
             console.log("Primary search failed or blocked. Attempting SoundCloud fallback...");
@@ -67,7 +68,7 @@ async function play(client, interaction, lang) {
             }
         }
 
-        // 3. Check if all resolution attempts failed
+        // 4. Check if all resolution attempts failed
         if (!resolve || resolve.loadType === "error" || resolve.loadType === "empty" || !resolve.tracks || resolve.tracks.length === 0) {
             const errorEmbed = new EmbedBuilder()
                 .setColor('#ff0000')
@@ -82,7 +83,7 @@ async function play(client, interaction, lang) {
             return await interaction.editReply({ embeds: [errorEmbed] });
         }
 
-        // Establish connection only after tracks are confirmed valid
+        // 5. Establish voice connection after confirming tracks exist
         let player = client.riffy.players.get(interaction.guildId);
         if (!player) {
             player = client.riffy.createConnection({
@@ -152,10 +153,14 @@ async function play(client, interaction, lang) {
             .setFooter({ text: lang?.footer || "Groover Music", iconURL: musicIcons?.heartIcon })
             .setDescription(lang?.play?.embed?.errorProcessing || "An unexpected error occurred while processing playback.");
 
-        if (interaction.deferred || interaction.replied) {
-            await interaction.editReply({ embeds: [errorEmbed] });
-        } else {
-            await interaction.reply({ embeds: [errorEmbed], ephemeral: true });
+        try {
+            if (interaction.deferred || interaction.replied) {
+                await interaction.editReply({ embeds: [errorEmbed] });
+            } else {
+                await interaction.reply({ embeds: [errorEmbed], ephemeral: true });
+            }
+        } catch (replyErr) {
+            console.error('Failed to send error reply:', replyErr);
         }
     }
 }
