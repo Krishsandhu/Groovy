@@ -38,14 +38,10 @@ async function play(client, interaction, lang) {
 
         await interaction.deferReply();
 
-        // Check if query is a direct link; if not, prepend SoundCloud search prefix
-        const isUrl = /^https?:\/\//i.test(query.trim());
-        const searchQuery = isUrl ? query.trim() : `scsearch:${query.trim()}`;
-
         let resolve;
         try {
             resolve = await client.riffy.resolve({ 
-                query: searchQuery, 
+                query: query.trim(), 
                 requester: interaction.user.username 
             });
             console.log("Riffy Resolve LoadType:", resolve?.loadType, "Tracks found:", resolve?.tracks?.length || 0);
@@ -81,7 +77,7 @@ async function play(client, interaction, lang) {
 
         const { loadType, tracks, playlistInfo } = resolve;
 
-        if (loadType === 'playlist') {
+        if (loadType === 'playlist' || loadType === 'PLAYLIST_LOADED') {
             for (const track of tracks) {
                 track.info.requester = interaction.user.username;
                 player.queue.add(track);
@@ -103,7 +99,7 @@ async function play(client, interaction, lang) {
 
             return await interaction.editReply({ embeds: [playlistEmbed] });
 
-        } else if (loadType === 'search' || loadType === 'track') {
+        } else if (loadType === 'search' || loadType === 'track' || loadType === 'SEARCH_RESULT' || loadType === 'TRACK_LOADED') {
             const track = tracks.shift();
             track.info.requester = interaction.user.username;
 
